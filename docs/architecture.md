@@ -80,16 +80,39 @@ Xentro PMS is a full-stack web application built with Next.js 16+ using the App 
 src/
 ├── app/                    # Next.js App Router
 │   ├── (auth)/            # Auth-related routes (login, register, etc.)
+│   ├── (protected)/       # Protected application routes
+│   │   ├── dashboard/     # Dashboard pages
+│   │   ├── profile/       # User profile pages
+│   │   ├── notifications/ # Notifications page
+│   │   ├── attendance/    # Attendance module (placeholder)
+│   │   ├── inventory/     # Inventory module (placeholder)
+│   │   ├── projects/      # Projects module (placeholder)
+│   │   ├── tasks/         # Tasks module (placeholder)
+│   │   ├── reports/       # Reports module (placeholder)
+│   │   ├── budget/        # Budget module (placeholder)
+│   │   └── admin/         # Admin module (placeholder)
 │   ├── actions/           # Server actions (auth.ts)
-│   ├── dashboard/         # Dashboard pages
-│   ├── profile/           # User profile pages
+│   ├── api/               # API routes
+│   │   └── notifications/ # Notification API endpoints
 │   ├── layout.tsx         # Root layout
 │   ├── middleware.ts      # Request middleware
 │   └── page.tsx           # Home page
 ├── components/            # React components
+│   ├── dashboard/         # Dashboard-specific components
+│   │   ├── dashboard-hero.tsx
+│   │   └── dashboard-cards.tsx
+│   ├── layout/            # Layout components
+│   │   ├── sidebar.tsx
+│   │   ├── header.tsx
+│   │   ├── notification-dropdown.tsx
+│   │   └── coming-soon.tsx
 │   └── ui/               # shadcn/ui components
 ├── lib/                   # Utilities and configurations
 │   ├── auth/             # Authorization helpers
+│   ├── dashboard/         # Dashboard service layer
+│   │   ├── types.ts
+│   │   ├── summary.ts
+│   │   └── notifications.ts
 │   ├── supabase/         # Supabase clients
 │   ├── utils.ts          # Utility functions
 │   └── validations/      # Zod schemas (auth.ts)
@@ -148,10 +171,33 @@ __tests__/                 # Test files
 4. User receives email verification link
 5. User verifies email via `/verify-email`
 6. Profile status changes from `PENDING_VERIFICATION` to `ACTIVE`
-7. User can now log in via `/login`
+7. User can log in via `/login`
 8. Session stored in HTTP-only cookies
 9. Middleware validates session on each request
 10. Protected routes require authentication via authorization helpers
+
+### Dashboard Architecture
+- **Protected Layout**: All authenticated routes use `(protected)` route group with sidebar and header
+- **Sidebar Navigation**: Role-aware navigation that shows appropriate menu items
+- **Dashboard Service Layer**: `src/lib/dashboard/` provides clean separation for dashboard data fetching
+  - `getDashboardSummary()`: Aggregates data from all modules
+  - `getUserNotifications()`: Fetches user notifications
+  - `getUnreadNotificationCount()`: Returns unread count
+- **Server-Side Data Fetching**: Dashboard page fetches data server-side for performance
+- **Placeholder Data**: When modules are not implemented, returns 0 or empty states
+- **Polling**: Notification count polls every 30 seconds (client-side)
+
+### Notification Architecture
+- **Database Table**: `notifications` table with RLS policies
+- **Notification Types**: TASK_ASSIGNED, TASK_UPDATED, TASK_COMPLETED, PROJECT_ASSIGNED, PROJECT_UPDATED, PROJECT_COMPLETED, INVENTORY_ALERT, SYSTEM, ADMIN
+- **Security**: Users can only read/update their own notifications (enforced by RLS)
+- **API Endpoints**: RESTful API for notification operations
+  - `GET /api/notifications` - Fetch user notifications
+  - `GET /api/notifications/unread-count` - Get unread count
+  - `POST /api/notifications/mark-read` - Mark single notification as read
+  - `POST /api/notifications/mark-all-read` - Mark all notifications as read
+- **Real-Time**: Structured to support Supabase Realtime in future phases
+- **UI Components**: Notification bell with dropdown, notifications page with filtering
 
 ### Reading Data
 1. Server Component fetches data via Supabase server client
@@ -167,14 +213,6 @@ __tests__/                 # Test files
 5. Server writes to Supabase
 6. Response sent to client
 7. UI updates (revalidation if needed)
-
-### Authentication Flow
-1. User signs in via Supabase Auth
-2. Supabase returns session
-3. Session stored in HTTP-only cookie via middleware
-4. Subsequent requests include cookie
-5. Middleware validates and refreshes session
-6. Server components access user from session
 
 ## State Management
 

@@ -10,6 +10,7 @@ export interface AuthUser {
   role: UserRole
   status: AccountStatus
   full_name: string
+  designation: string
 }
 
 /**
@@ -28,7 +29,7 @@ export async function requireAuthenticatedUser(): Promise<AuthUser> {
   // Get profile data
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('id, email, role, status, full_name')
+    .select('id, email, role, status, full_name, designation')
     .eq('id', user.id)
     .single()
   
@@ -43,6 +44,7 @@ export async function requireAuthenticatedUser(): Promise<AuthUser> {
     role: profile.role as UserRole,
     status: profile.status as AccountStatus,
     full_name: profile.full_name,
+    designation: profile.designation,
   }
 }
 
@@ -158,7 +160,33 @@ export async function requireAdminAccess(): Promise<AuthUser> {
  */
 export async function getCurrentUser(): Promise<AuthUser | null> {
   try {
-    return await requireAuthenticatedUser()
+    const supabase = await createClient()
+    
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    
+    if (authError || !user) {
+      return null
+    }
+    
+    // Get profile data
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, email, role, status, full_name, designation')
+      .eq('id', user.id)
+      .single()
+    
+    if (profileError || !profile) {
+      return null
+    }
+    
+    return {
+      id: profile.id,
+      email: profile.email,
+      role: profile.role as UserRole,
+      status: profile.status as AccountStatus,
+      full_name: profile.full_name,
+      designation: profile.designation,
+    }
   } catch {
     return null
   }

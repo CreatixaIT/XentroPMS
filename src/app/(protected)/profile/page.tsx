@@ -52,7 +52,6 @@ export default function ProfilePage() {
       }
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-floating-promises
     loadProfile()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

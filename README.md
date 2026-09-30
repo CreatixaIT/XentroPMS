@@ -127,15 +127,32 @@ Detailed documentation is available in the `docs/` directory:
 
 ## Features
 
+### Phase 1 (Complete)
 - User authentication and authorization
+- Email verification
+- Password reset and change
+- User profile management
 - Role-based access control (RBAC)
-- Team and project management
-- Task tracking and assignment
+- Account status management (PENDING_VERIFICATION, ACTIVE, DISABLED, BLOCKED)
+- Secure admin initialization
+
+### Phase 2 (Complete)
+- Professional dashboard with hero section
+- Responsive sidebar navigation
+- Role-aware menu items
+- Top header with user info
+- Notification system with read/unread functionality
+- Dashboard cards for all modules (placeholders for unimplemented modules)
+- Bangladesh time display
+- Coming soon pages for future modules
+
+### Planned Features
 - Attendance tracking (Asia/Dhaka timezone)
 - Inventory management
+- Project and task management
+- Budget and expense tracking
+- Reports and analytics
 - Notifications system
-- Analytics and reporting
-- Responsive design (mobile and desktop)
 
 ## Security
 

@@ -73,6 +73,79 @@ CREATE INDEX idx_audit_logs_target ON audit_logs(target_type, target_id);
 CREATE INDEX idx_audit_logs_created_at ON audit_logs(created_at);
 ```
 
+### notifications
+User notifications for alerts and updates.
+
+```sql
+CREATE TABLE notifications (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  type TEXT NOT NULL CHECK (type IN ('TASK_ASSIGNED', 'TASK_UPDATED', 'TASK_COMPLETED', 'PROJECT_ASSIGNED', 'PROJECT_UPDATED', 'PROJECT_COMPLETED', 'INVENTORY_ALERT', 'SYSTEM', 'ADMIN')),
+  title TEXT NOT NULL,
+  message TEXT NOT NULL,
+  read_at TIMESTAMPTZ,
+  related_type TEXT,
+  related_id UUID,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_notifications_user_id ON notifications(user_id);
+CREATE INDEX idx_notifications_read_at ON notifications(read_at);
+CREATE INDEX idx_notifications_created_at ON notifications(created_at DESC);
+CREATE INDEX idx_notifications_type ON notifications(type);
+```
+
+### RLS Policies for Notifications
+
+```sql
+-- Users can read their own notifications
+CREATE POLICY "Users can read own notifications"
+  ON notifications FOR SELECT
+  USING (auth.uid() = user_id);
+
+-- Users can update their own notifications (mark as read)
+CREATE POLICY "Users can update own notifications"
+  ON notifications FOR UPDATE
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+-- Users can insert their own notifications (if needed for internal use)
+CREATE POLICY "Users can insert own notifications"
+  ON notifications FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+-- SUPER_ADMIN can read all notifications (for administrative purposes)
+CREATE POLICY "SUPER_ADMIN can read all notifications"
+  ON notifications FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM profiles 
+      WHERE id = auth.uid() AND role = 'SUPER_ADMIN'
+    )
+  );
+
+-- SUPER_ADMIN can insert notifications (for admin actions)
+CREATE POLICY "SUPER_ADMIN can insert notifications"
+  ON notifications FOR INSERT
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM profiles 
+      WHERE id = auth.uid() AND role = 'SUPER_ADMIN'
+    )
+  );
+```
+
+## Future Tables (Not Yet Implemented)
+
+The following tables are planned for future phases but have not been created yet:
+- projects
+- tasks
+- attendance
+- inventory_categories
+- inventory_items
+- inventory_transactions
+- budget/expense tables
+
 ### projects
 Project management for teams.
 
@@ -189,32 +262,13 @@ CREATE INDEX idx_inventory_transactions_type ON inventory_transactions(type);
 CREATE INDEX idx_inventory_transactions_created_at ON inventory_transactions(created_at);
 ```
 
-### notifications
-User notifications.
-
-```sql
-CREATE TABLE notifications (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
-  type TEXT NOT NULL,
-  title TEXT NOT NULL,
-  message TEXT,
-  data JSONB,
-  read BOOLEAN DEFAULT FALSE,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX idx_notifications_user_id ON notifications(user_id);
-CREATE INDEX idx_notifications_read ON notifications(read);
-CREATE INDEX idx_notifications_created_at ON notifications(created_at);
-```
-
 ## Row Level Security (RLS)
 
 ### Enable RLS
 ```sql
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 ```
 
 ### RLS Policies for Profiles
@@ -302,76 +356,6 @@ CREATE POLICY "SUPER_ADMIN can insert audit logs"
   );
 ```
 
-#### Projects
-```sql
--- Users can view projects they're assigned to
-CREATE POLICY "Users can view assigned projects"
-  ON projects FOR SELECT
-  USING (
-    id IN (
-      SELECT project_id FROM tasks WHERE assigned_to = auth.uid()
-    )
-    OR created_by = auth.uid()
-  );
-
--- Team leaders can view department projects
-CREATE POLICY "Team leaders can view department projects"
-  ON projects FOR SELECT
-  USING (
-    EXISTS (
-      SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'team_leader'
-    )
-  );
-
--- Admins can view all projects
-CREATE POLICY "Admins can view all projects"
-  ON projects FOR SELECT
-  USING (
-    EXISTS (
-      SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'
-    )
-  );
-```
-
-#### Attendance
-```sql
--- Users can view own attendance
-CREATE POLICY "Users can view own attendance"
-  ON attendance FOR SELECT
-  USING (user_id = auth.uid());
-
--- Team leaders can view department attendance
-CREATE POLICY "Team leaders can view department attendance"
-  ON attendance FOR SELECT
-  USING (
-    EXISTS (
-      SELECT 1 FROM profiles 
-      WHERE id = auth.uid() 
-      AND role = 'team_leader'
-      AND department = (SELECT department FROM profiles WHERE id = attendance.user_id)
-    )
-  );
-
--- Admins can view all attendance
-CREATE POLICY "Admins can view all attendance"
-  ON attendance FOR SELECT
-  USING (
-    EXISTS (
-      SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'
-    )
-  );
-
--- Users can insert own attendance (for check-in)
-CREATE POLICY "Users can insert own attendance"
-  ON attendance FOR INSERT
-  WITH CHECK (user_id = auth.uid());
-
--- Users can update own attendance (for check-out)
-CREATE POLICY "Users can update own attendance"
-  ON attendance FOR UPDATE
-  USING (user_id = auth.uid());
-```
-
 ## Database Functions
 
 ### Updated At Trigger
@@ -387,18 +371,28 @@ $$ LANGUAGE plpgsql;
 -- Apply to tables
 CREATE TRIGGER update_profiles_updated_at BEFORE UPDATE ON profiles
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+```
 
-CREATE TRIGGER update_projects_updated_at BEFORE UPDATE ON projects
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_tasks_updated_at BEFORE UPDATE ON tasks
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_attendance_updated_at BEFORE UPDATE ON attendance
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_inventory_items_updated_at BEFORE UPDATE ON inventory_items
-  FOR EACH ROW EXECUTE FUNCTION updated_at_column();
+### Audit Log Function
+```sql
+CREATE OR REPLACE FUNCTION public.log_audit_event(
+  p_actor_id UUID,
+  p_action TEXT,
+  p_target_type TEXT DEFAULT NULL,
+  p_target_id UUID DEFAULT NULL,
+  p_metadata JSONB DEFAULT '{}'::jsonb
+)
+RETURNS UUID AS $$
+DECLARE
+  v_log_id UUID;
+BEGIN
+  INSERT INTO audit_logs (actor_id, action, target_type, target_id, metadata)
+  VALUES (p_actor_id, p_action, p_target_type, p_target_id, p_metadata)
+  RETURNING id INTO v_log_id;
+  
+  RETURN v_log_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 ```
 
 ## Timezone Handling

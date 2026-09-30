@@ -35,9 +35,8 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  // Protect dashboard and profile routes
-  const isProtectedRoute = request.nextUrl.pathname.startsWith('/dashboard') ||
-                           request.nextUrl.pathname.startsWith('/profile')
+  // Protect (protected) routes
+  const isProtectedRoute = request.nextUrl.pathname.match(/^\/(dashboard|profile|attendance|inventory|projects|tasks|notifications|reports|budget|admin)(\/|$)/)
 
   // Redirect to login if not authenticated
   if (isProtectedRoute && !user) {
@@ -47,10 +46,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Redirect to dashboard if already authenticated and trying to access auth pages
-  const isAuthRoute = request.nextUrl.pathname.startsWith('/login') ||
-                     request.nextUrl.pathname.startsWith('/register') ||
-                     request.nextUrl.pathname.startsWith('/forgot-password') ||
-                     request.nextUrl.pathname.startsWith('/reset-password')
+  const isAuthRoute = request.nextUrl.pathname.match(/^\/(login|register|forgot-password|reset-password|verify-email|account-disabled|account-blocked|unauthorized)(\/|$)/)
 
   if (isAuthRoute && user) {
     const url = request.nextUrl.clone()
