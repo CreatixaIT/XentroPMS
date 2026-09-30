@@ -106,11 +106,11 @@ CREATE OR REPLACE FUNCTION create_purchase_with_stock_update(
   p_item_id UUID,
   p_quantity NUMERIC,
   p_unit_cost NUMERIC,
+  p_user_id UUID,
   p_purchase_date DATE DEFAULT CURRENT_DATE,
   p_supplier_name TEXT DEFAULT NULL,
   p_invoice_reference TEXT DEFAULT NULL,
-  p_notes TEXT DEFAULT NULL,
-  p_user_id UUID
+  p_notes TEXT DEFAULT NULL
 ) RETURNS UUID
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -247,11 +247,11 @@ CREATE OR REPLACE FUNCTION create_item_with_initial_stock(
   p_description TEXT,
   p_unit TEXT,
   p_size_specification TEXT,
+  p_user_id UUID,
   p_initial_quantity NUMERIC DEFAULT 0,
   p_reorder_level NUMERIC DEFAULT 0,
   p_unit_cost NUMERIC DEFAULT 0,
-  p_selling_price NUMERIC DEFAULT NULL,
-  p_user_id UUID
+  p_selling_price NUMERIC DEFAULT NULL
 ) RETURNS UUID
 LANGUAGE plpgsql
 SECURITY DEFINER

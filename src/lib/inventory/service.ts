@@ -291,11 +291,11 @@ export async function createInventoryItem(input: CreateItemInput): Promise<Inven
     p_description: input.description || null,
     p_unit: input.unit,
     p_size_specification: input.size_specification || null,
+    p_user_id: user.id,
     p_initial_quantity: input.initial_quantity || 0,
     p_reorder_level: input.reorder_level || 0,
     p_unit_cost: input.unit_cost || 0,
-    p_selling_price: input.selling_price || null,
-    p_user_id: user.id
+    p_selling_price: input.selling_price || null
   })
 
   if (error) {
@@ -425,11 +425,11 @@ export async function createPurchase(input: CreatePurchaseInput): Promise<Invent
     p_item_id: input.item_id,
     p_quantity: input.quantity,
     p_unit_cost: input.unit_cost,
+    p_user_id: user.id,
     p_purchase_date: input.purchase_date || new Date().toISOString().split('T')[0],
     p_supplier_name: input.supplier_name || null,
     p_invoice_reference: input.invoice_reference || null,
-    p_notes: input.notes || null,
-    p_user_id: user.id
+    p_notes: input.notes || null
   })
 
   if (error) {
