@@ -49,8 +49,10 @@ cp .env.example .env.local
 
 Edit `.env.local` with your actual values:
 - `NEXT_PUBLIC_SUPABASE_URL` - Your Supabase project URL
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Your Supabase anon key
-- `SUPABASE_SERVICE_ROLE_KEY` - Your Supabase service role key (for admin operations)
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` - Your Supabase publishable key (client-side)
+- `SUPABASE_SECRET_KEY` - Your Supabase secret key (server-side privileged operations)
+- `SUPABASE_SERVICE_ROLE_KEY` - Your Supabase service role key (required for auth.admin operations)
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Legacy anon key (backward compatibility fallback)
 - `RESEND_API_KEY` - Your Resend API key
 - `EMAIL_FROM` - Sender email address for transactional emails
 - `NEXT_PUBLIC_APP_URL` - Application URL (default: http://localhost:3000)

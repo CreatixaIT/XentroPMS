@@ -14,15 +14,22 @@
  * - Uses Supabase Auth for password management (never stored in plain text)
  */
 
+import { loadEnvConfig } from '@next/env'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 
+// Load environment variables from .env.local and other Next.js env files
+loadEnvConfig(process.cwd())
+
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
+// Admin operations require the legacy service role key, not the new secret key
+const supabaseSecretKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY
 const adminEmail = process.env.INITIAL_ADMIN_EMAIL
 const adminPassword = process.env.INITIAL_ADMIN_PASSWORD
 
 if (!supabaseUrl || !supabaseSecretKey) {
-  console.error('Error: NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SECRET_KEY (or SUPABASE_SERVICE_ROLE_KEY) must be set')
+  console.error('Error: NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set')
+  console.error('Note: SUPABASE_SECRET_KEY is supported as a fallback for admin operations')
+  console.error('Please ensure .env.local contains the required environment variables')
   process.exit(1)
 }
 

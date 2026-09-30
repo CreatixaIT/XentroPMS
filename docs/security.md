@@ -111,10 +111,20 @@ export async function updateTask(taskId: string, data: TaskUpdate) {
 ### Required Environment Variables
 ```
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key
+SUPABASE_SECRET_KEY=your_supabase_secret_key
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 RESEND_API_KEY=your_resend_api_key
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
+
+### Key Usage
+- **NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY**: Client-side Supabase client (browser, SSR with session)
+- **SUPABASE_SECRET_KEY**: Server-side privileged operations (excluding auth.admin)
+- **SUPABASE_SERVICE_ROLE_KEY**: Required for auth.admin operations (user creation, password management)
+- **NEXT_PUBLIC_SUPABASE_ANON_KEY**: Legacy fallback for client-side (backward compatibility)
+
+**Important**: The new secret key format (`sb_secret_`) is not compatible with Supabase's `auth.admin` APIs. Admin operations like `auth.admin.createUser()` require the legacy service role key format.
 
 ### Secrets Never Committed
 - Never commit `.env` files

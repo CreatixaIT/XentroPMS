@@ -30,7 +30,9 @@ Xentro PMS is built with Next.js and is optimized for Vercel deployment.
 ### Production Variables
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=your_production_supabase_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_production_supabase_anon_key
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your_production_supabase_publishable_key
+SUPABASE_SECRET_KEY=your_production_supabase_secret_key
+SUPABASE_SERVICE_ROLE_KEY=your_production_supabase_service_role_key
 RESEND_API_KEY=your_production_resend_api_key
 NEXT_PUBLIC_APP_URL=https://your-domain.com
 ```
@@ -38,7 +40,9 @@ NEXT_PUBLIC_APP_URL=https://your-domain.com
 ### Staging Variables
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=your_staging_supabase_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_staging_supabase_anon_key
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your_staging_supabase_publishable_key
+SUPABASE_SECRET_KEY=your_staging_supabase_secret_key
+SUPABASE_SERVICE_ROLE_KEY=your_staging_supabase_service_role_key
 RESEND_API_KEY=your_staging_resend_api_key
 NEXT_PUBLIC_APP_URL=https://staging.your-domain.com
 ```
