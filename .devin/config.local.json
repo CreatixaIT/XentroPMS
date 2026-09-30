@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Exec(npx)",
+      "Exec(mv)",
+      "Exec(ls)",
+      "Exec(true)",
+      "Exec(npm install)",
+      "Exec(mkdir)",
+      "Exec(npm run)",
+      "Exec(git add)"
+    ]
+  }
+}
