@@ -10,7 +10,8 @@
       "Exec(npm run)",
       "Exec(git add)",
       "Exec(git commit)",
-      "Exec(npm test)"
+      "Exec(npm test)",
+      "Exec(rm)"
     ]
   }
 }

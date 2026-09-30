@@ -54,13 +54,30 @@ function AttendanceCard({ summary }: { summary: AttendanceSummary }) {
     }
   }
 
-  const getStatusText = (status: string | null) => {
+  const getStatusText = (status: string | null, timeIn: string | null, timeOut: string | null) => {
+    if (timeIn && timeOut) {
+      return 'Complete'
+    }
+    if (timeIn && !timeOut) {
+      return 'Timed In'
+    }
     switch (status) {
       case 'present': return 'Present'
       case 'absent': return 'Absent'
       case 'not_recorded': return 'Not recorded'
       default: return 'Unknown'
     }
+  }
+
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString)
+    const options: Intl.DateTimeFormatOptions = {
+      timeZone: 'Asia/Dhaka',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    }
+    return date.toLocaleTimeString('en-US', options)
   }
 
   return (
@@ -73,17 +90,17 @@ function AttendanceCard({ summary }: { summary: AttendanceSummary }) {
         <CardContent>
           <div className="text-2xl font-bold mb-2">
             <span className={getStatusColor(summary.status)}>
-              {getStatusText(summary.status)}
+              {getStatusText(summary.status, summary.time_in, summary.time_out)}
             </span>
           </div>
-          {summary.time_in && (
+          {summary.time_in && summary.time_out && (
             <p className="text-xs text-slate-500">
-              In: {new Date(summary.time_in!).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+              {formatTime(summary.time_in)} → {formatTime(summary.time_out!)}
             </p>
           )}
-          {summary.time_out && (
+          {summary.time_in && !summary.time_out && (
             <p className="text-xs text-slate-500">
-              Out: {new Date(summary.time_out!).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+              In: {formatTime(summary.time_in)}
             </p>
           )}
           {!summary.time_in && !summary.time_out && (

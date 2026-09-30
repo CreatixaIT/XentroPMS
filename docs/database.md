@@ -135,6 +135,186 @@ CREATE POLICY "SUPER_ADMIN can insert notifications"
   );
 ```
 
+### attendance_settings
+Workplace location configuration for attendance geofencing.
+
+```sql
+CREATE TABLE attendance_settings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  workplace_name TEXT NOT NULL,
+  latitude NUMERIC NOT NULL CHECK (latitude >= -90 AND latitude <= 90),
+  longitude NUMERIC NOT NULL CHECK (longitude >= -180 AND longitude <= 180),
+  allowed_radius_meters NUMERIC NOT NULL CHECK (allowed_radius_meters > 0),
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_attendance_settings_active ON attendance_settings(is_active) WHERE is_active = true;
+```
+
+### attendance_records
+Employee attendance records with geolocation verification.
+
+```sql
+CREATE TABLE attendance_records (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  attendance_date DATE NOT NULL,
+  time_in TIMESTAMPTZ,
+  time_out TIMESTAMPTZ,
+  time_in_latitude NUMERIC,
+  time_in_longitude NUMERIC,
+  time_out_latitude NUMERIC,
+  time_out_longitude NUMERIC,
+  time_in_accuracy NUMERIC CHECK (time_in_accuracy >= 0),
+  time_out_accuracy NUMERIC CHECK (time_out_accuracy >= 0),
+  time_in_location_verified BOOLEAN NOT NULL DEFAULT false,
+  time_out_location_verified BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, attendance_date)
+);
+
+CREATE INDEX idx_attendance_records_user_id ON attendance_records(user_id);
+CREATE INDEX idx_attendance_records_date ON attendance_records(attendance_date DESC);
+CREATE INDEX idx_attendance_records_user_date ON attendance_records(user_id, attendance_date DESC);
+CREATE INDEX idx_attendance_records_time_in ON attendance_records(time_in DESC);
+```
+
+### RLS Policies for Attendance Settings
+
+```sql
+-- SUPER_ADMIN can read all attendance settings
+CREATE POLICY "SUPER_ADMIN can read attendance settings"
+  ON attendance_settings FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM profiles 
+      WHERE id = auth.uid() AND role = 'SUPER_ADMIN'
+    )
+  );
+
+-- SUPER_ADMIN can insert/update attendance settings
+CREATE POLICY "SUPER_ADMIN can manage attendance settings"
+  ON attendance_settings FOR ALL
+  USING (
+    EXISTS (
+      SELECT 1 FROM profiles 
+      WHERE id = auth.uid() AND role = 'SUPER_ADMIN'
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM profiles 
+      WHERE id = auth.uid() AND role = 'SUPER_ADMIN'
+    )
+  );
+```
+
+### RLS Policies for Attendance Records
+
+```sql
+-- Users can read their own attendance records
+CREATE POLICY "Users can read own attendance records"
+  ON attendance_records FOR SELECT
+  USING (auth.uid() = user_id);
+
+-- SUPER_ADMIN can read all attendance records
+CREATE POLICY "SUPER_ADMIN can read all attendance records"
+  ON attendance_records FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM profiles 
+      WHERE id = auth.uid() AND role = 'SUPER_ADMIN'
+    )
+  );
+
+-- TEAM_LEADER can read own attendance records
+CREATE POLICY "TEAM_LEADER can read own attendance records"
+  ON attendance_records FOR SELECT
+  USING (
+    auth.uid() = user_id AND
+    EXISTS (
+      SELECT 1 FROM profiles 
+      WHERE id = auth.uid() AND role = 'TEAM_LEADER'
+    )
+  );
+
+-- SUPER_ADMIN can insert/update attendance records (for administrative purposes)
+CREATE POLICY "SUPER_ADMIN can manage attendance records"
+  ON attendance_records FOR ALL
+  USING (
+    EXISTS (
+      SELECT 1 FROM profiles 
+      WHERE id = auth.uid() AND role = 'SUPER_ADMIN'
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM profiles 
+      WHERE id = auth.uid() AND role = 'SUPER_ADMIN'
+    )
+  );
+
+-- No DELETE policy - attendance records should not be deleted
+```
+
+### Database Functions for Attendance
+
+```sql
+-- Calculate distance between two points using Haversine formula (returns meters)
+CREATE OR REPLACE FUNCTION calculate_distance(
+  lat1 NUMERIC,
+  lon1 NUMERIC,
+  lat2 NUMERIC,
+  lon2 NUMERIC
+)
+RETURNS NUMERIC AS $$
+-- Implementation uses Earth radius of 6,371,000 meters
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+-- Get business date in Asia/Dhaka timezone
+CREATE OR REPLACE FUNCTION get_business_date()
+RETURNS DATE AS $$
+BEGIN
+  RETURN (NOW() AT TIME ZONE 'Asia/Dhaka')::DATE;
+END;
+$$ LANGUAGE plpgsql STABLE;
+
+-- Check if location is within allowed radius
+CREATE OR REPLACE FUNCTION is_location_within_radius(
+  user_lat NUMERIC,
+  user_lon NUMERIC,
+  setting_id UUID
+)
+RETURNS BOOLEAN AS $$
+-- Calculates distance and compares to allowed radius
+$$ LANGUAGE plpgsql;
+
+-- Create attendance record with Time In
+CREATE OR REPLACE FUNCTION create_attendance_time_in(
+  p_user_id UUID,
+  p_latitude NUMERIC,
+  p_longitude NUMERIC,
+  p_accuracy NUMERIC
+)
+RETURNS UUID AS $$
+-- Validates uniqueness, location, and creates record with server timestamp
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Update attendance record with Time Out
+CREATE OR REPLACE FUNCTION update_attendance_time_out(
+  p_user_id UUID,
+  p_latitude NUMERIC,
+  p_longitude NUMERIC,
+  p_accuracy NUMERIC
+)
+RETURNS UUID AS $$
+-- Validates Time In exists, location, and updates with server timestamp
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+```
+
 ## Future Tables (Not Yet Implemented)
 
 The following tables are planned for future phases but have not been created yet:

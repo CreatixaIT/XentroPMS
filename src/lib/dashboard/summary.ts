@@ -10,8 +10,8 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
     throw new Error('User not authenticated')
   }
 
-  // Get attendance summary (placeholder - attendance not implemented yet)
-  const attendance = await getAttendanceSummary()
+  // Get attendance summary (now implemented)
+  const attendance = await getAttendanceSummary(supabase, user.id)
   
   // Get task summary (placeholder - tasks not implemented yet)
   const tasks = await getTaskSummary()
@@ -34,13 +34,51 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
   }
 }
 
-async function getAttendanceSummary() {
-  // Attendance not implemented yet - return placeholder
+async function getAttendanceSummary(supabase: SupabaseClient, userId: string) {
+  // Get business date in Asia/Dhaka
+  const { data: dateResult } = await supabase.rpc('get_business_date')
+  
+  if (!dateResult.data) {
+    return {
+      status: 'not_recorded' as const,
+      time_in: null,
+      time_out: null,
+      date: new Date().toISOString().split('T')[0],
+    }
+  }
+
+  const businessDate = dateResult.data
+
+  // Get today's attendance
+  const { data: attendance, error } = await supabase
+    .from('attendance_records')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('attendance_date', businessDate)
+    .single()
+
+  if (error || !attendance) {
+    return {
+      status: 'not_recorded' as const,
+      time_in: null,
+      time_out: null,
+      date: businessDate,
+    }
+  }
+
+  // Determine status
+  let status: 'present' | 'absent' | 'not_recorded' | null = 'not_recorded'
+  if (attendance.time_in && !attendance.time_out) {
+    status = 'present'
+  } else if (attendance.time_in && attendance.time_out) {
+    status = 'present'
+  }
+
   return {
-    status: 'not_recorded' as const,
-    time_in: null,
-    time_out: null,
-    date: new Date().toISOString().split('T')[0],
+    status,
+    time_in: attendance.time_in,
+    time_out: attendance.time_out,
+    date: attendance.attendance_date,
   }
 }
 

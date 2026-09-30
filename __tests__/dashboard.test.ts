@@ -8,6 +8,9 @@ jest.mock('@/lib/supabase/server', () => ({
         data: { user: { id: 'test-user-id' } },
       }),
     },
+    rpc: jest.fn(() => ({
+      data: '2026-09-30',
+    })),
     from: jest.fn(() => ({
       select: jest.fn().mockReturnThis(),
       eq: jest.fn().mockReturnThis(),
@@ -16,7 +19,7 @@ jest.mock('@/lib/supabase/server', () => ({
       range: jest.fn().mockResolvedValue({ data: [], error: null }),
       is: jest.fn().mockReturnThis(),
       not: jest.fn().mockReturnThis(),
-      single: jest.fn().mockResolvedValue({ data: null, error: null }),
+      single: jest.fn(() => Promise.resolve({ data: null, error: { code: 'PGRST116' } })),
     })),
   })),
 }))
@@ -41,6 +44,13 @@ describe('Dashboard Summary', () => {
     expect(summary.projects.active_count).toBe(0)
     expect(summary.projects.completed_count).toBe(0)
     expect(summary.inventory.total_items).toBe(0)
+  })
+
+  it('should handle attendance data when no record exists', async () => {
+    const summary = await getDashboardSummary()
+    
+    // When no attendance record, should return not_recorded status
+    expect(summary.attendance.status).toBe('not_recorded')
   })
 })
 
