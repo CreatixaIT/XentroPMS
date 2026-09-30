@@ -14,15 +14,15 @@
  * - Uses Supabase Auth for password management (never stored in plain text)
  */
 
-import { createClient } from '@supabase/supabase-js'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
 const adminEmail = process.env.INITIAL_ADMIN_EMAIL
 const adminPassword = process.env.INITIAL_ADMIN_PASSWORD
 
-if (!supabaseUrl || !supabaseServiceKey) {
-  console.error('Error: NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set')
+if (!supabaseUrl || !supabaseSecretKey) {
+  console.error('Error: NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SECRET_KEY (or SUPABASE_SERVICE_ROLE_KEY) must be set')
   process.exit(1)
 }
 
@@ -32,10 +32,11 @@ if (!adminEmail || !adminPassword) {
 }
 
 // Use service role client for admin operations
-const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+const supabase = createSupabaseClient(supabaseUrl, supabaseSecretKey, {
   auth: {
     autoRefreshToken: false,
     persistSession: false,
+    detectSessionInUrl: false,
   },
 })
 
