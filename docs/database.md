@@ -29,23 +29,48 @@ Every important table includes:
 
 ## Core Tables
 
-### users
+### profiles
 Extended user profile information (Supabase auth.users is the base table).
 
 ```sql
 CREATE TABLE profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  email TEXT UNIQUE NOT NULL,
-  full_name TEXT,
-  role TEXT NOT NULL CHECK (role IN ('admin', 'team_leader', 'employee')),
-  department TEXT,
-  avatar_url TEXT,
+  email TEXT NOT NULL,
+  full_name TEXT NOT NULL,
+  designation TEXT NOT NULL,
+  phone TEXT NOT NULL,
+  nid TEXT NOT NULL,
+  address TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'EMPLOYEE' CHECK (role IN ('SUPER_ADMIN', 'TEAM_LEADER', 'EMPLOYEE')),
+  status TEXT NOT NULL DEFAULT 'PENDING_VERIFICATION' CHECK (status IN ('PENDING_VERIFICATION', 'ACTIVE', 'DISABLED', 'BLOCKED')),
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(email)
 );
 
 CREATE INDEX idx_profiles_role ON profiles(role);
-CREATE INDEX idx_profiles_department ON profiles(department);
+CREATE INDEX idx_profiles_status ON profiles(status);
+CREATE INDEX idx_profiles_email ON profiles(email);
+```
+
+### audit_logs
+Audit trail for security-sensitive actions.
+
+```sql
+CREATE TABLE audit_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  actor_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
+  action TEXT NOT NULL,
+  target_type TEXT,
+  target_id UUID,
+  metadata JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_audit_logs_actor_id ON audit_logs(actor_id);
+CREATE INDEX idx_audit_logs_action ON audit_logs(action);
+CREATE INDEX idx_audit_logs_target ON audit_logs(target_type, target_id);
+CREATE INDEX idx_audit_logs_created_at ON audit_logs(created_at);
 ```
 
 ### projects
@@ -189,41 +214,90 @@ CREATE INDEX idx_notifications_created_at ON notifications(created_at);
 ### Enable RLS
 ```sql
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
-ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
-ALTER TABLE attendance ENABLE ROW LEVEL SECURITY;
-ALTER TABLE inventory_items ENABLE ROW LEVEL SECURITY;
-ALTER TABLE inventory_transactions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 ```
 
-### Example RLS Policies
+### RLS Policies for Profiles
 
-#### Profiles
 ```sql
 -- Users can read their own profile
-CREATE POLICY "Users can view own profile"
+CREATE POLICY "Users can read own profile"
   ON profiles FOR SELECT
   USING (auth.uid() = id);
 
--- Team leaders can view profiles in their department
-CREATE POLICY "Team leaders can view department profiles"
-  ON profiles FOR SELECT
-  USING (
-    auth.uid() IN (
-      SELECT id FROM profiles WHERE role = 'team_leader'
-    )
-    AND department = (
-      SELECT department FROM profiles WHERE id = auth.uid()
-    )
-  );
-
--- Admins can view all profiles
-CREATE POLICY "Admins can view all profiles"
+-- SUPER_ADMIN can read all profiles
+CREATE POLICY "SUPER_ADMIN can read all profiles"
   ON profiles FOR SELECT
   USING (
     EXISTS (
-      SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'
+      SELECT 1 FROM profiles 
+      WHERE id = auth.uid() AND role = 'SUPER_ADMIN'
+    )
+  );
+
+-- Users can update allowed fields of their own profile
+CREATE POLICY "Users can update own profile"
+  ON profiles FOR UPDATE
+  USING (
+    auth.uid() = id AND
+    -- Prevent changing role and status
+    role = (SELECT role FROM profiles WHERE id = auth.uid()) AND
+    status = (SELECT status FROM profiles WHERE id = auth.uid())
+  )
+  WITH CHECK (
+    auth.uid() = id AND
+    -- Prevent changing role and status
+    role = (SELECT role FROM profiles WHERE id = auth.uid()) AND
+    status = (SELECT status FROM profiles WHERE id = auth.uid())
+  );
+
+-- SUPER_ADMIN can update all profiles
+CREATE POLICY "SUPER_ADMIN can update all profiles"
+  ON profiles FOR UPDATE
+  USING (
+    EXISTS (
+      SELECT 1 FROM profiles 
+      WHERE id = auth.uid() AND role = 'SUPER_ADMIN'
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM profiles 
+      WHERE id = auth.uid() AND role = 'SUPER_ADMIN'
+    )
+  );
+
+-- SUPER_ADMIN can insert profiles (for admin creation)
+CREATE POLICY "SUPER_ADMIN can insert profiles"
+  ON profiles FOR INSERT
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM profiles 
+      WHERE id = auth.uid() AND role = 'SUPER_ADMIN'
+    )
+  );
+```
+
+### RLS Policies for Audit Logs
+
+```sql
+-- SUPER_ADMIN can read all audit logs
+CREATE POLICY "SUPER_ADMIN can read audit logs"
+  ON audit_logs FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM profiles 
+      WHERE id = auth.uid() AND role = 'SUPER_ADMIN'
+    )
+  );
+
+-- SUPER_ADMIN can insert audit logs
+CREATE POLICY "SUPER_ADMIN can insert audit logs"
+  ON audit_logs FOR INSERT
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM profiles 
+      WHERE id = auth.uid() AND role = 'SUPER_ADMIN'
     )
   );
 ```

@@ -32,12 +32,23 @@ cp .env.example .env.local
 
 4. Configure `.env.local` with your local Supabase credentials
 
-5. Start development server:
+5. Apply database migrations:
+```bash
+supabase link --project-ref YOUR_PROJECT_REF
+supabase db push
+```
+
+6. Initialize the Super Admin:
+```bash
+npm run init-admin
+```
+
+7. Start development server:
 ```bash
 npm run dev
 ```
 
-6. Open [http://localhost:3000](http://localhost:3000)
+8. Open [http://localhost:3000](http://localhost:3000)
 
 ## Development Workflow
 
@@ -111,16 +122,13 @@ export function UserForm({ onSubmit }: { onSubmit: (data: FormData) => void }) {
 ### Component Structure
 ```
 components/
-├── ui/              # shadcn/ui components
-├── auth/            # Authentication components
-│   ├── LoginForm.tsx
-│   └── RegisterForm.tsx
-├── dashboard/       # Dashboard components
-│   ├── Header.tsx
-│   └── Sidebar.tsx
-└── shared/          # Shared components
-    ├── Button.tsx
-    └── Modal.tsx
+└── ui/              # shadcn/ui components
+    ├── button.tsx
+    ├── input.tsx
+    ├── label.tsx
+    ├── card.tsx
+    ├── alert.tsx
+    └── dialog.tsx
 ```
 
 ### Page Structure
@@ -128,74 +136,101 @@ components/
 app/
 ├── (auth)/          # Auth routes group
 │   ├── login/
-│   └── register/
-├── (dashboard)/     # Dashboard routes group
-│   ├── projects/
-│   └── tasks/
-└── api/             # API routes
-    └── users/
+│   ├── register/
+│   ├── verify-email/
+│   ├── forgot-password/
+│   └── reset-password/
+├── actions/         # Server actions
+│   └── auth.ts
+├── dashboard/       # Dashboard
+├── profile/         # User profile
+│   └── security/
+├── middleware.ts    # Request middleware
+└── page.tsx         # Home page
 ```
 
 ## Server Actions
 
-### Creating Server Actions
+### Auth Server Actions
 ```typescript
-// app/actions/users.ts
+// app/actions/auth.ts
 "use server"
 
 import { createClient } from '@/lib/supabase/server'
-import { revalidatePath } from 'next/cache'
+import { redirect } from 'next/navigation'
+import { registerSchema } from '@/lib/validations/auth'
 
-export async function updateUser(userId: string, data: UserData) {
+export async function register(formData: FormData) {
   const supabase = await createClient()
   
-  // Validation
-  if (!data.name) {
-    return { error: 'Name is required' }
+  // Validate input
+  const validationResult = registerSchema.safeParse(formData)
+  if (!validationResult.success) {
+    return { error: 'Validation failed' }
   }
   
-  // Authorization check
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    return { error: 'Unauthorized' }
-  }
-  
-  // Update
-  const { error } = await supabase
-    .from('profiles')
-    .update({ name: data.name })
-    .eq('id', userId)
+  // Create user with Supabase Auth
+  const { data, error } = await supabase.auth.signUp({
+    email: validationResult.data.email,
+    password: validationResult.data.password,
+    options: {
+      data: {
+        full_name: validationResult.data.full_name,
+        // ... other fields
+      },
+    },
+  })
   
   if (error) {
-    return { error: 'Failed to update user' }
+    return { error: error.message }
   }
-  
-  // Revalidate
-  revalidatePath('/dashboard/users')
   
   return { success: true }
 }
 ```
 
-### Using Server Actions
+### Using Authorization in Server Actions
 ```typescript
-// Client Component
-"use client"
+import { requireAuthenticatedUser } from '@/lib/auth/authorization'
 
-import { updateUser } from '@/app/actions/users'
-
-export function UserForm({ userId }: { userId: string }) {
-  async function handleSubmit(formData: FormData) {
-    const result = await updateUser(userId, {
-      name: formData.get('name') as string
-    })
-    
-    if (result.error) {
-      // Handle error
-    }
-  }
+export async function sensitiveAction(data: FormData) {
+  // Ensure user is authenticated
+  const user = await requireAuthenticatedUser()
   
-  return <form action={handleSubmit}>...</form>
+  // Perform operation
+  // ...
+}
+```
+
+## Authorization
+
+### Using Authorization Helpers
+```typescript
+import { requireAuthenticatedUser, requireSuperAdmin, requireActiveAccount } from '@/lib/auth/authorization'
+
+export default async function ProtectedPage() {
+  // Ensure user is authenticated and account is active
+  const user = await requireActiveAccount()
+  
+  // For admin-only pages
+  const admin = await requireSuperAdmin()
+  
+  return <div>Protected content</div>
+}
+```
+
+### Server Actions with Authorization
+```typescript
+"use server"
+
+import { requireAuthenticatedUser } from '@/lib/auth/authorization'
+
+export async function sensitiveAction(data: FormData) {
+  // Verify user is authenticated
+  const user = await requireAuthenticatedUser()
+  
+  // Perform sensitive operation
+  // ...
 }
 ```
 
@@ -329,16 +364,28 @@ npm test -- --coverage
 
 ### Writing Tests
 ```typescript
-// __tests__/utils.test.ts
-import { formatDate } from '@/lib/utils'
+// __tests__/auth.test.ts
+import { registerSchema, loginSchema } from '@/lib/validations/auth'
 
-describe('formatDate', () => {
-  it('should format date correctly', () => {
-    const date = new Date('2024-01-01')
-    expect(formatDate(date)).toBe('January 1, 2024')
+describe('Auth Validation', () => {
+  it('should validate registration data', () => {
+    const validData = {
+      full_name: 'John Doe',
+      email: 'john@example.com',
+      password: 'Password123!',
+      // ... other fields
+    }
+    const result = registerSchema.safeParse(validData)
+    expect(result.success).toBe(true)
   })
 })
 ```
+
+### Test Coverage
+- Auth validation schemas
+- Authorization helpers
+- Password strength validation
+- Form validation
 
 ## Debugging
 

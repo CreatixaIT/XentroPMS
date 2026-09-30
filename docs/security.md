@@ -25,16 +25,29 @@ Security is a top priority for Xentro PMS. This document outlines the security m
 ### Password Security
 - Passwords never stored in plain text
 - Hashed by Supabase using bcrypt
-- Minimum password requirements enforced
+- Minimum password requirements enforced:
+  - At least 8 characters
+  - At least one uppercase letter
+  - At least one lowercase letter
+  - At least one number
+  - At least one special character
 - Password reset flow via email
+- Password strength indicator in UI
 
 ## Authorization
 
 ### Role-Based Access Control (RBAC)
 Three user roles:
-- **admin**: Full system access
-- **team_leader**: Department-level access
-- **employee**: Personal access only
+- **SUPER_ADMIN**: Full system access, can manage users and system settings
+- **TEAM_LEADER**: Team/project/task functionality according to permissions
+- **EMPLOYEE**: Normal employee functionality, personal access only
+
+### Account Status
+Four account statuses:
+- **PENDING_VERIFICATION**: User has not completed email verification
+- **ACTIVE**: Normal access, full functionality
+- **DISABLED**: Cannot log in or use protected application functionality
+- **BLOCKED**: Cannot access the application, security restriction
 
 ### Server-Side Authorization
 - All authorization decisions made on server

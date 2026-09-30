@@ -60,8 +60,18 @@ Xentro PMS is a full-stack web application built with Next.js 16+ using the App 
 
 ### Authorization
 - **Role-Based Access Control (RBAC)**: User roles stored in database
+  - SUPER_ADMIN: Full system access
+  - TEAM_LEADER: Team/project/task functionality
+  - EMPLOYEE: Normal employee functionality
+- **Account Status**: PENDING_VERIFICATION, ACTIVE, DISABLED, BLOCKED
 - **Row Level Security (RLS)**: Database-level access control
 - **Server-side validation**: All sensitive operations validated on server
+- **Authorization helpers**: Reusable server-side functions (`src/lib/auth/authorization.ts`)
+  - `requireAuthenticatedUser()`: Ensure user is logged in
+  - `requireRole()`: Ensure user has specific role
+  - `requireActiveAccount()`: Ensure account is active
+  - `requireSuperAdmin()`: Ensure user is SUPER_ADMIN
+  - `canUpdateProfile()`: Check if user can update a profile
 - **Never trust client**: All authorization decisions made server-side
 
 ## Directory Structure
@@ -69,25 +79,30 @@ Xentro PMS is a full-stack web application built with Next.js 16+ using the App 
 ```
 src/
 ├── app/                    # Next.js App Router
-│   ├── (auth)/            # Auth-related routes (login, register)
-│   ├── (dashboard)/       # Dashboard routes
-│   ├── api/               # API routes
+│   ├── (auth)/            # Auth-related routes (login, register, etc.)
+│   ├── actions/           # Server actions (auth.ts)
+│   ├── dashboard/         # Dashboard pages
+│   ├── profile/           # User profile pages
 │   ├── layout.tsx         # Root layout
+│   ├── middleware.ts      # Request middleware
 │   └── page.tsx           # Home page
 ├── components/            # React components
-│   ├── ui/               # shadcn/ui components
-│   ├── auth/             # Auth-related components
-│   ├── dashboard/        # Dashboard components
-│   └── shared/           # Shared components
+│   └── ui/               # shadcn/ui components
 ├── lib/                   # Utilities and configurations
+│   ├── auth/             # Authorization helpers
 │   ├── supabase/         # Supabase clients
 │   ├── utils.ts          # Utility functions
-│   └── validations/      # Zod schemas
-├── hooks/                 # Custom React hooks
-├── types/                 # TypeScript type definitions
-├── services/              # Business logic services
-├── config/                # Application configuration
-└── styles/                # Global styles
+│   └── validations/      # Zod schemas (auth.ts)
+├── types/                 # TypeScript type definitions (database.ts)
+
+supabase/
+└── migrations/            # Database migration files
+
+scripts/                   # Utility scripts
+└── init-admin.ts         # Super Admin initialization
+
+docs/                      # Project documentation
+__tests__/                 # Test files
 ```
 
 ## Design Principles
@@ -125,6 +140,18 @@ src/
 - Testing coverage
 
 ## Data Flow
+
+### Authentication Flow
+1. User registers via `/register` with profile information
+2. Supabase Auth creates user account
+3. Database trigger creates associated profile in `profiles` table
+4. User receives email verification link
+5. User verifies email via `/verify-email`
+6. Profile status changes from `PENDING_VERIFICATION` to `ACTIVE`
+7. User can now log in via `/login`
+8. Session stored in HTTP-only cookies
+9. Middleware validates session on each request
+10. Protected routes require authentication via authorization helpers
 
 ### Reading Data
 1. Server Component fetches data via Supabase server client

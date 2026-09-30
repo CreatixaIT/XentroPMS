@@ -50,15 +50,33 @@ cp .env.example .env.local
 Edit `.env.local` with your actual values:
 - `NEXT_PUBLIC_SUPABASE_URL` - Your Supabase project URL
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Your Supabase anon key
+- `SUPABASE_SERVICE_ROLE_KEY` - Your Supabase service role key (for admin operations)
 - `RESEND_API_KEY` - Your Resend API key
+- `EMAIL_FROM` - Sender email address for transactional emails
 - `NEXT_PUBLIC_APP_URL` - Application URL (default: http://localhost:3000)
+- `INITIAL_ADMIN_EMAIL` - Email for initial super admin (default: xentroevent@gmail.com)
+- `INITIAL_ADMIN_PASSWORD` - Password for initial super admin
 
-4. Run the development server:
+4. Apply database migrations:
+```bash
+# Link to your Supabase project
+supabase link --project-ref YOUR_PROJECT_REF
+
+# Apply migrations
+supabase db push
+```
+
+5. Initialize the Super Admin:
+```bash
+npm run init-admin
+```
+
+6. Run the development server:
 ```bash
 npm run dev
 ```
 
-5. Open [http://localhost:3000](http://localhost:3000) in your browser
+7. Open [http://localhost:3000](http://localhost:3000) in your browser
 
 ## Development
 
@@ -68,27 +86,34 @@ npm run dev
 - `npm run build` - Build for production
 - `npm start` - Start production server
 - `npm run lint` - Run ESLint
+- `npm test` - Run tests
+- `npm run init-admin` - Initialize Super Admin user
 
 ### Project Structure
 
 ```
 src/
   app/              # Next.js App Router pages
+    (auth)/         # Authentication routes (login, register, etc.)
+    actions/        # Server actions
+    dashboard/      # Dashboard pages
+    profile/        # User profile pages
   components/       # Reusable UI components
+    ui/            # shadcn/ui components
   lib/              # Utility functions and configurations
-    supabase/       # Supabase client/server utilities
-  hooks/            # Custom React hooks
+    auth/          # Authorization helpers
+    supabase/      # Supabase client/server utilities
+    validations/   # Zod validation schemas
   types/            # TypeScript type definitions
-  services/         # Business logic services
-  config/           # Application configuration
-  styles/           # Global styles
 
 supabase/
   migrations/       # Database migration files
-  seed/             # Database seed data
+
+scripts/            # Utility scripts
+  init-admin.ts    # Super Admin initialization
 
 docs/               # Project documentation
-tests/              # Test files
+__tests__/          # Test files
 ```
 
 ## Documentation

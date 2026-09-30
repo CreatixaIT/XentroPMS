@@ -8,7 +8,9 @@
       "Exec(npm install)",
       "Exec(mkdir)",
       "Exec(npm run)",
-      "Exec(git add)"
+      "Exec(git add)",
+      "Exec(git commit)",
+      "Exec(npm test)"
     ]
   }
 }
