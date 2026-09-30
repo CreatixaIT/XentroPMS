@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Users, Clock, Settings, BarChart3 } from 'lucide-react'
+import { Users, Clock, Settings, BarChart3, Package } from 'lucide-react'
 
 export default function AdminPage() {
   const adminModules = [
@@ -19,11 +19,18 @@ export default function AdminPage() {
       color: 'text-purple-600'
     },
     {
+      title: 'Inventory Management',
+      description: 'Manage inventory categories, items, and stock',
+      icon: Package,
+      href: '/admin/inventory',
+      color: 'text-green-600'
+    },
+    {
       title: 'User Management',
       description: 'Manage user accounts and permissions',
       icon: Users,
       href: '#',
-      color: 'text-green-600',
+      color: 'text-orange-600',
       disabled: true
     },
     {
@@ -31,7 +38,7 @@ export default function AdminPage() {
       description: 'View system reports and analytics',
       icon: BarChart3,
       href: '#',
-      color: 'text-orange-600',
+      color: 'text-pink-600',
       disabled: true
     }
   ]

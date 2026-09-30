@@ -85,19 +85,22 @@ src/
 │   │   ├── profile/       # User profile pages
 │   │   ├── notifications/ # Notifications page
 │   │   ├── attendance/    # Attendance module
-│   │   ├── inventory/     # Inventory module (placeholder)
+│   │   ├── inventory/     # Inventory module
 │   │   ├── projects/      # Projects module (placeholder)
 │   │   ├── tasks/         # Tasks module (placeholder)
 │   │   ├── reports/       # Reports module (placeholder)
 │   │   ├── budget/        # Budget module (placeholder)
 │   │   └── admin/         # Admin module
 │   │       ├── attendance/    # Admin attendance dashboard
+│   │       ├── inventory/      # Admin inventory settings
 │   │       └── settings/      # Admin settings
 │   │           └── attendance/ # Attendance settings
 │   ├── actions/           # Server actions (auth.ts)
 │   ├── api/               # API routes
 │   │   ├── notifications/ # Notification API endpoints
-│   │   └── attendance/    # Attendance API endpoints
+│   │   ├── attendance/    # Attendance API endpoints
+│   │   ├── inventory/     # Inventory API endpoints
+│   │   └── user/          # User info endpoint
 │   ├── layout.tsx         # Root layout
 │   ├── middleware.ts      # Request middleware
 │   └── page.tsx           # Home page
@@ -116,6 +119,9 @@ src/
 │   ├── attendance/       # Attendance service layer
 │   │   ├── types.ts
 │   │   └── service.ts
+│   ├── inventory/        # Inventory service layer
+│   │   ├── types.ts
+│   │   └── service.ts
 │   ├── dashboard/         # Dashboard service layer
 │   │   ├── types.ts
 │   │   ├── summary.ts
@@ -124,7 +130,8 @@ src/
 │   ├── utils.ts          # Utility functions
 │   └── validations/      # Zod schemas
 │       ├── auth.ts
-│       └── attendance.ts
+│       ├── attendance.ts
+│       └── inventory.ts
 ├── types/                 # TypeScript type definitions (database.ts)
 
 supabase/
@@ -229,6 +236,36 @@ __tests__/                 # Test files
   - `GET/POST /api/attendance/settings` - Manage workplace settings (admin only)
 - **Security**: Users can only read their own attendance, only SUPER_ADMIN can manage settings and view all records
 - **Accuracy Handling**: Browser provides accuracy in meters, poor accuracy prompts user to retry
+
+### Inventory Architecture
+- **Database Tables**: `inventory_categories`, `inventory_items`, `inventory_purchases`, `inventory_transactions` tables with RLS policies
+- **Stock Integrity**: All stock changes must go through server-side database functions, never direct quantity modification
+- **Transaction History**: Every stock change creates an immutable transaction record with quantity_before, quantity_after, and reason
+- **Purchase Records**: Immutable purchase records with automatic stock updates via database function
+- **Stock Status**: Automatically calculated based on current_quantity vs reorder_level (IN_STOCK, LOW_STOCK, OUT_OF_STOCK)
+- **Database Functions**:
+  - `create_purchase_with_stock_update()`: Atomically creates purchase and updates stock
+  - `adjust_stock()`: Secure stock adjustment with validation
+  - `create_item_with_initial_stock()`: Creates item with optional initial stock transaction
+- **Stock Rules**:
+  - Stock cannot go negative (validated in database)
+  - Quantities must be positive for purchases/adjustments
+  - Costs cannot be negative
+  - SKU must be unique
+  - Category names must be unique among active categories
+- **API Endpoints**:
+  - `GET/POST /api/inventory/items` - List/create inventory items
+  - `GET/PATCH/DELETE /api/inventory/items/[id]` - Get/update/archive item
+  - `GET/POST /api/inventory/categories` - List/create categories
+  - `GET/PATCH /api/inventory/categories/[id]` - Get/update category
+  - `POST /api/inventory/purchases` - Record purchase with stock update
+  - `POST /api/inventory/adjust` - Adjust stock (in/out/correction)
+  - `GET /api/inventory/stats` - Get inventory statistics
+  - `GET /api/inventory/items/[id]/transactions` - Get item transaction history
+  - `GET /api/inventory/items/[id]/purchases` - Get item purchase history
+- **Security**: All authenticated users can read inventory, only SUPER_ADMIN can modify items/categories/stock
+- **Validation**: Zod schemas validate all inputs on API routes
+- **NUMERIC Types**: Quantities and costs use PostgreSQL NUMERIC for precision (no floating-point errors)
 
 ### Reading Data
 1. Server Component fetches data via Supabase server client

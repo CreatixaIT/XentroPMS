@@ -260,6 +260,267 @@ CREATE POLICY "SUPER_ADMIN can manage attendance records"
 -- No DELETE policy - attendance records should not be deleted
 ```
 
+### inventory_categories
+Inventory item categories for organization.
+
+```sql
+CREATE TABLE inventory_categories (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  description TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  created_by UUID REFERENCES profiles(id) ON DELETE SET NULL,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  CONSTRAINT unique_active_category_name UNIQUE (name, is_active) DEFERRABLE INITIALLY DEFERRED
+);
+
+CREATE INDEX idx_inventory_categories_active ON inventory_categories(is_active) WHERE is_active = true;
+CREATE INDEX idx_inventory_categories_name ON inventory_categories(name);
+```
+
+### inventory_items
+Inventory items with stock tracking.
+
+```sql
+CREATE TABLE inventory_items (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  category_id UUID NOT NULL REFERENCES inventory_categories(id) ON DELETE RESTRICT,
+  name TEXT NOT NULL,
+  sku TEXT NOT NULL UNIQUE,
+  description TEXT,
+  unit TEXT NOT NULL,
+  size_specification TEXT,
+  current_quantity NUMERIC(12,2) NOT NULL DEFAULT 0 CHECK (current_quantity >= 0),
+  reorder_level NUMERIC(12,2) NOT NULL DEFAULT 0 CHECK (reorder_level >= 0),
+  unit_cost NUMERIC(14,2) NOT NULL DEFAULT 0 CHECK (unit_cost >= 0),
+  selling_price NUMERIC(14,2) CHECK (selling_price >= 0),
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_by UUID REFERENCES profiles(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_inventory_items_category ON inventory_items(category_id);
+CREATE INDEX idx_inventory_items_sku ON inventory_items(sku);
+CREATE INDEX idx_inventory_items_active ON inventory_items(is_active) WHERE is_active = true;
+CREATE INDEX idx_inventory_items_stock_status ON inventory_items(current_quantity, reorder_level);
+```
+
+### inventory_purchases
+Purchase records for stock additions (immutable).
+
+```sql
+CREATE TABLE inventory_purchases (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  item_id UUID NOT NULL REFERENCES inventory_items(id) ON DELETE RESTRICT,
+  quantity NUMERIC(12,2) NOT NULL CHECK (quantity > 0),
+  unit_cost NUMERIC(14,2) NOT NULL CHECK (unit_cost >= 0),
+  total_cost NUMERIC(16,2) GENERATED ALWAYS AS (quantity * unit_cost) STORED,
+  purchase_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  supplier_name TEXT,
+  invoice_reference TEXT,
+  notes TEXT,
+  created_by UUID NOT NULL REFERENCES profiles(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_inventory_purchases_item ON inventory_purchases(item_id);
+CREATE INDEX idx_inventory_purchases_date ON inventory_purchases(purchase_date DESC);
+CREATE INDEX idx_inventory_purchases_created_by ON inventory_purchases(created_by);
+```
+
+### inventory_transactions
+Immutable transaction history for all stock changes.
+
+```sql
+CREATE TABLE inventory_transactions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  item_id UUID NOT NULL REFERENCES inventory_items(id) ON DELETE RESTRICT,
+  transaction_type TEXT NOT NULL CHECK (transaction_type IN ('PURCHASE', 'ADJUSTMENT_IN', 'ADJUSTMENT_OUT', 'MANUAL_CORRECTION')),
+  quantity NUMERIC(12,2) NOT NULL,
+  quantity_before NUMERIC(12,2) NOT NULL CHECK (quantity_before >= 0),
+  quantity_after NUMERIC(12,2) NOT NULL CHECK (quantity_after >= 0),
+  reference_type TEXT,
+  reference_id UUID,
+  reason TEXT,
+  created_by UUID NOT NULL REFERENCES profiles(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_inventory_transactions_item ON inventory_transactions(item_id);
+CREATE INDEX idx_inventory_transactions_type ON inventory_transactions(transaction_type);
+CREATE INDEX idx_inventory_transactions_date ON inventory_transactions(created_at DESC);
+CREATE INDEX idx_inventory_transactions_reference ON inventory_transactions(reference_type, reference_id);
+```
+
+### RLS Policies for Inventory Categories
+
+```sql
+-- All authenticated users can read active categories
+CREATE POLICY "Users can read active categories"
+  ON inventory_categories FOR SELECT
+  TO authenticated
+  USING (is_active = true);
+
+-- SUPER_ADMIN can read all categories
+CREATE POLICY "Super admin can read all categories"
+  ON inventory_categories FOR SELECT
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM profiles
+      WHERE id = auth.uid()
+      AND role = 'SUPER_ADMIN'
+    )
+  );
+
+-- SUPER_ADMIN can insert/update/delete categories
+CREATE POLICY "Super admin can manage categories"
+  ON inventory_categories FOR ALL
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM profiles
+      WHERE id = auth.uid()
+      AND role = 'SUPER_ADMIN'
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM profiles
+      WHERE id = auth.uid()
+      AND role = 'SUPER_ADMIN'
+    )
+  );
+```
+
+### RLS Policies for Inventory Items
+
+```sql
+-- All authenticated users can read active items
+CREATE POLICY "Users can read active items"
+  ON inventory_items FOR SELECT
+  TO authenticated
+  USING (is_active = true);
+
+-- SUPER_ADMIN can read all items
+CREATE POLICY "Super admin can read all items"
+  ON inventory_items FOR SELECT
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM profiles
+      WHERE id = auth.uid()
+      AND role = 'SUPER_ADMIN'
+    )
+  );
+
+-- SUPER_ADMIN can insert/update/delete items
+CREATE POLICY "Super admin can manage items"
+  ON inventory_items FOR ALL
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM profiles
+      WHERE id = auth.uid()
+      AND role = 'SUPER_ADMIN'
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM profiles
+      WHERE id = auth.uid()
+      AND role = 'SUPER_ADMIN'
+    )
+  );
+```
+
+### RLS Policies for Inventory Purchases
+
+```sql
+-- All authenticated users can read purchases
+CREATE POLICY "Users can read purchases"
+  ON inventory_purchases FOR SELECT
+  TO authenticated
+  USING (true);
+
+-- SUPER_ADMIN can insert purchases
+CREATE POLICY "Super admin can insert purchases"
+  ON inventory_purchases FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM profiles
+      WHERE id = auth.uid()
+      AND role = 'SUPER_ADMIN'
+    )
+  );
+
+-- No update or delete policies - purchases are immutable
+```
+
+### RLS Policies for Inventory Transactions
+
+```sql
+-- All authenticated users can read transactions
+CREATE POLICY "Users can read transactions"
+  ON inventory_transactions FOR SELECT
+  TO authenticated
+  USING (true);
+
+-- No insert, update, or delete policies - transactions are immutable audit records
+```
+
+### Database Functions for Inventory
+
+```sql
+-- Create purchase and update stock atomically
+CREATE OR REPLACE FUNCTION create_purchase_with_stock_update(
+  p_item_id UUID,
+  p_quantity NUMERIC,
+  p_unit_cost NUMERIC,
+  p_purchase_date DATE DEFAULT CURRENT_DATE,
+  p_supplier_name TEXT DEFAULT NULL,
+  p_invoice_reference TEXT DEFAULT NULL,
+  p_notes TEXT DEFAULT NULL,
+  p_user_id UUID
+)
+RETURNS UUID AS $$
+-- Locks item row, validates inputs, updates stock, creates purchase and transaction records
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Adjust stock (in or out)
+CREATE OR REPLACE FUNCTION adjust_stock(
+  p_item_id UUID,
+  p_adjustment_type TEXT,
+  p_quantity NUMERIC,
+  p_reason TEXT,
+  p_user_id UUID
+)
+RETURNS VOID AS $$
+-- Validates adjustment type, locks item, validates stock, updates quantity, creates transaction
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Create item with initial stock
+CREATE OR REPLACE FUNCTION create_item_with_initial_stock(
+  p_category_id UUID,
+  p_name TEXT,
+  p_sku TEXT,
+  p_description TEXT,
+  p_unit TEXT,
+  p_size_specification TEXT,
+  p_initial_quantity NUMERIC DEFAULT 0,
+  p_reorder_level NUMERIC DEFAULT 0,
+  p_unit_cost NUMERIC DEFAULT 0,
+  p_selling_price NUMERIC DEFAULT NULL,
+  p_user_id UUID
+)
+RETURNS UUID AS $$
+-- Validates inputs, creates item, creates initial stock transaction if quantity > 0
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+```
+
 ### Database Functions for Attendance
 
 ```sql
@@ -320,10 +581,6 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 The following tables are planned for future phases but have not been created yet:
 - projects
 - tasks
-- attendance
-- inventory_categories
-- inventory_items
-- inventory_transactions
 - budget/expense tables
 
 ### projects
@@ -368,78 +625,6 @@ CREATE INDEX idx_tasks_project_id ON tasks(project_id);
 CREATE INDEX idx_tasks_status ON tasks(status);
 CREATE INDEX idx_tasks_assigned_to ON tasks(assigned_to);
 CREATE INDEX idx_tasks_due_date ON tasks(due_date);
-```
-
-### attendance
-Employee attendance tracking.
-
-```sql
-CREATE TABLE attendance (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
-  date DATE NOT NULL,
-  check_in TIMESTAMPTZ NOT NULL,
-  check_out TIMESTAMPTZ,
-  total_hours DECIMAL(5,2),
-  status TEXT DEFAULT 'present' CHECK (status IN ('present', 'absent', 'late', 'half_day')),
-  notes TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(user_id, date)
-);
-
-CREATE INDEX idx_attendance_user_id ON attendance(user_id);
-CREATE INDEX idx_attendance_date ON attendance(date);
-CREATE INDEX idx_attendance_status ON attendance(status);
-```
-
-### inventory
-Company inventory management.
-
-```sql
-CREATE TABLE inventory_categories (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name TEXT NOT NULL UNIQUE,
-  description TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE TABLE inventory_items (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  category_id UUID REFERENCES inventory_categories(id) ON DELETE SET NULL,
-  name TEXT NOT NULL,
-  description TEXT,
-  quantity INTEGER NOT NULL DEFAULT 0,
-  unit TEXT,
-  min_stock_level INTEGER DEFAULT 0,
-  location TEXT,
-  status TEXT DEFAULT 'available' CHECK (status IN ('available', 'low_stock', 'out_of_stock', 'reserved')),
-  created_by UUID REFERENCES profiles(id),
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX idx_inventory_category_id ON inventory_items(category_id);
-CREATE INDEX idx_inventory_status ON inventory_items(status);
-```
-
-### inventory_transactions
-Inventory movement tracking.
-
-```sql
-CREATE TABLE inventory_transactions (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  item_id UUID REFERENCES inventory_items(id) ON DELETE CASCADE,
-  type TEXT NOT NULL CHECK (type IN ('in', 'out', 'adjustment')),
-  quantity INTEGER NOT NULL,
-  notes TEXT,
-  performed_by UUID REFERENCES profiles(id),
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX idx_inventory_transactions_item_id ON inventory_transactions(item_id);
-CREATE INDEX idx_inventory_transactions_type ON inventory_transactions(type);
-CREATE INDEX idx_inventory_transactions_created_at ON inventory_transactions(created_at);
 ```
 
 ## Row Level Security (RLS)
@@ -609,6 +794,24 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 - Use Supabase migrations in `supabase/migrations/`
 - Version control all schema changes
 - Test migrations locally before deployment
+
+### Current Migrations
+- `20240930000001_create_profiles_and_audit_logs.sql` - Profiles and audit logs
+- `20240930000002_create_notifications.sql` - Notifications system
+- `20240930000003_create_attendance.sql` - Attendance system with geolocation
+- `20240930000004_create_inventory.sql` - Inventory management system
+
+### Applying Migrations
+```bash
+# Link to your Supabase project
+supabase link --project-ref YOUR_PROJECT_REF
+
+# Apply all migrations
+supabase db push
+
+# Apply specific migration
+supabase migration up
+```
 
 ### Production
 - Backup before migrations

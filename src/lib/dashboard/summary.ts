@@ -101,11 +101,33 @@ async function getProjectSummary() {
 }
 
 async function getInventorySummary() {
-  // Inventory not implemented yet - return placeholder
+  const supabase = await createClient()
+  
+  // Get total active items
+  const { count: totalItems } = await supabase
+    .from('inventory_items')
+    .select('*', { count: 'exact', head: true })
+    .eq('is_active', true)
+
+  // Get low stock items
+  const { count: lowStockCount } = await supabase
+    .from('inventory_items')
+    .select('*', { count: 'exact', head: true })
+    .eq('is_active', true)
+    .lte('current_quantity', 'reorder_level')
+    .gt('current_quantity', 0)
+
+  // Get available items (in stock)
+  const { count: availableCount } = await supabase
+    .from('inventory_items')
+    .select('*', { count: 'exact', head: true })
+    .eq('is_active', true)
+    .gt('current_quantity', 'reorder_level')
+
   return {
-    total_items: 0,
-    low_stock_count: 0,
-    available_count: 0,
+    total_items: totalItems || 0,
+    low_stock_count: lowStockCount || 0,
+    available_count: availableCount || 0,
   }
 }
 

@@ -157,8 +157,18 @@ Detailed documentation is available in the `docs/` directory:
 - Location accuracy handling
 - RLS policies for attendance security
 
+### Phase 4 (Complete)
+- Inventory management system with categories and items
+- Stock tracking with transaction history
+- Purchase recording with automatic stock updates
+- Stock adjustments (in/out/manual correction)
+- Low stock and out of stock tracking
+- Inventory statistics and reporting
+- Server-side stock integrity (no direct quantity modification)
+- RLS policies for inventory security
+- Admin-only category and item management
+
 ### Planned Features
-- Inventory management
 - Project and task management
 - Budget and expense tracking
 - Reports and analytics
