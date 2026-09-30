@@ -21,17 +21,12 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 loadEnvConfig(process.cwd())
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-// Auth Admin operations currently require legacy service_role key due to SDK/platform compatibility
-// See: https://github.com/supabase/supabase-js/issues/1568
-const supabaseSecretKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY
+const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY
 const adminEmail = process.env.INITIAL_ADMIN_EMAIL
 const adminPassword = process.env.INITIAL_ADMIN_PASSWORD
 
 if (!supabaseUrl || !supabaseSecretKey) {
-  console.error('Error: NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set')
-  console.error('Note: SUPABASE_SECRET_KEY is supported as a fallback')
-  console.error('For auth.admin operations, SUPABASE_SERVICE_ROLE_KEY is recommended due to SDK compatibility')
-  console.error('See: https://github.com/supabase/supabase-js/issues/1568')
+  console.error('Error: NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SECRET_KEY must be set')
   process.exit(1)
 }
 
@@ -49,12 +44,48 @@ const supabase = createSupabaseClient(supabaseUrl, supabaseSecretKey, {
   },
 })
 
+// Auth Admin API wrapper using raw fetch to avoid SDK's Authorization: Bearer issue with sb_secret_* keys
+// The new sb_secret_* keys are NOT JWTs and must be sent only on the 'apikey' header
+async function listUsers() {
+  const response = await fetch(`${supabaseUrl}/auth/v1/admin/users`, {
+    method: 'GET',
+    headers: {
+      apikey: supabaseSecretKey!,
+    },
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(`List users failed: ${response.status} ${JSON.stringify(error)}`)
+  }
+
+  return response.json()
+}
+
+async function createUser(userData: Record<string, unknown>) {
+  const response = await fetch(`${supabaseUrl}/auth/v1/admin/users`, {
+    method: 'POST',
+    headers: {
+      apikey: supabaseSecretKey!,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(userData),
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(`Create user failed: ${response.status} ${JSON.stringify(error)}`)
+  }
+
+  return response.json()
+}
+
 async function initializeAdmin() {
   console.log('Starting Super Admin initialization...')
   console.log(`Admin email: ${adminEmail}`)
 
   try {
-    // Check if admin already exists
+    // Check if admin already exists in profiles
     const { data: existingProfile } = await supabase
       .from('profiles')
       .select('id, email, role')
@@ -87,11 +118,57 @@ async function initializeAdmin() {
       }
     }
 
-    // Create admin user with Supabase Auth
-    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+    // Check if user exists in Auth using raw fetch
+    console.log('Checking if user exists in Supabase Auth...')
+    const existingUsers = await listUsers()
+    const existingAuthUser = existingUsers.users.find((u: { email: string }) => u.email === adminEmail)
+
+    if (existingAuthUser) {
+      console.log('User already exists in Supabase Auth:', adminEmail)
+      console.log('User ID:', existingAuthUser.id)
+      
+      // Create profile for existing auth user
+      const { error: profileCreateError } = await supabase
+        .from('profiles')
+        .insert({
+          id: existingAuthUser.id,
+          email: adminEmail,
+          role: 'SUPER_ADMIN',
+          status: 'ACTIVE',
+          full_name: 'Super Admin',
+          designation: 'System Administrator',
+        })
+
+      if (profileCreateError) {
+        console.error('Error creating profile for existing user:', profileCreateError)
+        // Profile might already exist, try updating instead
+        const { error: profileUpdateError } = await supabase
+          .from('profiles')
+          .update({
+            role: 'SUPER_ADMIN',
+            status: 'ACTIVE',
+            full_name: 'Super Admin',
+            designation: 'System Administrator',
+          })
+          .eq('id', existingAuthUser.id)
+
+        if (profileUpdateError) {
+          console.error('Error updating profile:', profileUpdateError)
+          process.exit(1)
+        }
+      }
+
+      console.log('✓ Profile created/updated for existing auth user')
+      console.log('✓ Super Admin initialization complete')
+      process.exit(0)
+    }
+
+    // Create admin user with Supabase Auth using raw fetch
+    console.log('Creating auth user...')
+    const authData = await createUser({
       email: adminEmail,
       password: adminPassword,
-      email_confirm: true, // Auto-confirm email for admin
+      email_confirm: true,
       user_metadata: {
         full_name: 'Super Admin',
         designation: 'System Administrator',
@@ -101,12 +178,8 @@ async function initializeAdmin() {
       },
     })
 
-    if (authError) {
-      console.error('Error creating auth user:', authError)
-      process.exit(1)
-    }
-
     console.log('✓ Auth user created')
+    console.log('User ID:', authData.id)
 
     // Update profile to SUPER_ADMIN and ACTIVE status
     const { error: profileUpdateError } = await supabase
@@ -117,7 +190,7 @@ async function initializeAdmin() {
         full_name: 'Super Admin',
         designation: 'System Administrator',
       })
-      .eq('id', authData.user.id)
+      .eq('id', authData.id)
 
     if (profileUpdateError) {
       console.error('Error updating profile:', profileUpdateError)
