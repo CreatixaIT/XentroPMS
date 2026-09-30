@@ -21,15 +21,17 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 loadEnvConfig(process.cwd())
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-// Admin operations require the legacy service role key, not the new secret key
+// Auth Admin operations currently require legacy service_role key due to SDK/platform compatibility
+// See: https://github.com/supabase/supabase-js/issues/1568
 const supabaseSecretKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY
 const adminEmail = process.env.INITIAL_ADMIN_EMAIL
 const adminPassword = process.env.INITIAL_ADMIN_PASSWORD
 
 if (!supabaseUrl || !supabaseSecretKey) {
   console.error('Error: NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set')
-  console.error('Note: SUPABASE_SECRET_KEY is supported as a fallback for admin operations')
-  console.error('Please ensure .env.local contains the required environment variables')
+  console.error('Note: SUPABASE_SECRET_KEY is supported as a fallback')
+  console.error('For auth.admin operations, SUPABASE_SERVICE_ROLE_KEY is recommended due to SDK compatibility')
+  console.error('See: https://github.com/supabase/supabase-js/issues/1568')
   process.exit(1)
 }
 

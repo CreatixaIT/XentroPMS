@@ -121,10 +121,10 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 ### Key Usage
 - **NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY**: Client-side Supabase client (browser, SSR with session)
 - **SUPABASE_SECRET_KEY**: Server-side privileged operations (excluding auth.admin)
-- **SUPABASE_SERVICE_ROLE_KEY**: Required for auth.admin operations (user creation, password management)
+- **SUPABASE_SERVICE_ROLE_KEY**: Recommended for auth.admin operations (user creation, password management)
 - **NEXT_PUBLIC_SUPABASE_ANON_KEY**: Legacy fallback for client-side (backward compatibility)
 
-**Important**: The new secret key format (`sb_secret_`) is not compatible with Supabase's `auth.admin` APIs. Admin operations like `auth.admin.createUser()` require the legacy service role key format.
+**Important**: Due to current SDK/platform compatibility issues (see https://github.com/supabase/supabase-js/issues/1568), the new secret key format (`sb_secret_`) does not work reliably with Supabase's `auth.admin` APIs. Admin operations like `auth.admin.createUser()` currently require the legacy service role key format. This is a known issue that may be resolved in future SDK versions.
 
 ### Secrets Never Committed
 - Never commit `.env` files
