@@ -1,19 +1,22 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { Bell, LogOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { logout } from '@/app/actions/auth'
 import { NotificationDropdown } from '@/components/layout/notification-dropdown'
 import type { AuthUser } from '@/lib/auth/authorization'
+import { createClient } from '@/lib/supabase/client'
 
 interface HeaderProps {
   user: AuthUser
 }
 
 export function Header({ user }: HeaderProps) {
+  const router = useRouter()
   const [unreadCount, setUnreadCount] = useState(0)
   const [showNotifications, setShowNotifications] = useState(false)
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
 
   useEffect(() => {
     async function fetchUnreadCount() {
@@ -33,6 +36,24 @@ export function Header({ user }: HeaderProps) {
     const interval = setInterval(fetchUnreadCount, 30000)
     return () => clearInterval(interval)
   }, [])
+
+  const handleLogout = async () => {
+    if (isLoggingOut) return
+    
+    setIsLoggingOut(true)
+    try {
+      const supabase = await createClient()
+      await supabase.auth.signOut()
+      router.push('/login')
+      router.refresh()
+    } catch (error) {
+      console.error('Logout error:', error)
+      // Even if there's an error, redirect to login
+      router.push('/login')
+    } finally {
+      setIsLoggingOut(false)
+    }
+  }
 
   const getGreeting = () => {
     const hour = new Date().getHours()
@@ -94,11 +115,15 @@ export function Header({ user }: HeaderProps) {
           </div>
 
           {/* Logout */}
-          <form action={logout}>
-            <Button variant="ghost" size="icon" title="Logout">
-              <LogOut className="h-5 w-5" />
-            </Button>
-          </form>
+          <Button
+            variant="ghost"
+            size="icon"
+            title="Logout"
+            onClick={handleLogout}
+            disabled={isLoggingOut}
+          >
+            <LogOut className="h-5 w-5" />
+          </Button>
         </div>
       </div>
     </header>

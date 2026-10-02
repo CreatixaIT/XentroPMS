@@ -21,6 +21,11 @@ export interface TaskSummary {
     title: string
     due_date: string | null
     priority: string
+    status: string
+    projects: Array<{
+      id: string
+      name: string
+    }>
   }>
 }
 
@@ -31,6 +36,8 @@ export interface ProjectSummary {
     id: string
     name: string
     status: string
+    start_date: string | null
+    target_end_date: string | null
   }>
 }
 

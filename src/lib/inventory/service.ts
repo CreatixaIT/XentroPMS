@@ -146,6 +146,18 @@ export async function createCategory(input: CreateCategoryInput): Promise<Invent
   const supabase = await createClient()
   const user = await requireAuthenticatedUser()
 
+  // Check for duplicate category name
+  const { data: existing } = await supabase
+    .from('inventory_categories')
+    .select('id')
+    .eq('name', input.name)
+    .eq('is_active', true)
+    .single()
+
+  if (existing) {
+    throw new Error('Category with this name already exists')
+  }
+
   const { data, error } = await supabase
     .from('inventory_categories')
     .insert({

@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { Package, Search, ArrowUpDown, MoreHorizontal } from 'lucide-react'
+import { Package, Search, ArrowUpDown, MoreHorizontal, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import {
   Table,
@@ -36,6 +37,9 @@ export default function InventoryPage() {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
   const [categories, setCategories] = useState<InventoryCategory[]>([])
   const [total, setTotal] = useState(0)
+  const [showAddCategoryDialog, setShowAddCategoryDialog] = useState(false)
+  const [newCategoryName, setNewCategoryName] = useState('')
+  const [addingCategory, setAddingCategory] = useState(false)
 
   const loadStats = useCallback(async () => {
     try {
@@ -60,6 +64,36 @@ export default function InventoryPage() {
       console.error('Error loading categories:', error)
     }
   }, [])
+
+  const handleAddCategory = async () => {
+    if (!newCategoryName.trim()) {
+      alert('Category name is required')
+      return
+    }
+
+    setAddingCategory(true)
+    try {
+      const response = await fetch('/api/inventory/categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newCategoryName.trim() })
+      })
+
+      if (response.ok) {
+        await loadCategories()
+        setNewCategoryName('')
+        setShowAddCategoryDialog(false)
+      } else {
+        const error = await response.json()
+        alert(error.error || 'Failed to add category')
+      }
+    } catch (error) {
+      console.error('Error adding category:', error)
+      alert('Failed to add category')
+    } finally {
+      setAddingCategory(false)
+    }
+  }
 
   const loadItems = useCallback(async () => {
     try {
@@ -206,6 +240,14 @@ export default function InventoryPage() {
                   ))}
                 </SelectContent>
               </Select>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowAddCategoryDialog(true)}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Category
+              </Button>
               <Select value={stockStatusFilter} onValueChange={(value) => setStockStatusFilter(value as StockStatus | '')}>
                 <SelectTrigger className="w-[140px]">
                   <SelectValue placeholder="Stock Status" />
@@ -305,6 +347,49 @@ export default function InventoryPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Add Category Dialog */}
+      {showAddCategoryDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle>Add Category</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="category-name">Category Name</Label>
+                  <Input
+                    id="category-name"
+                    value={newCategoryName}
+                    onChange={(e) => setNewCategoryName(e.target.value)}
+                    placeholder="Enter category name"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleAddCategory}
+                    disabled={addingCategory}
+                    className="flex-1"
+                  >
+                    {addingCategory ? 'Adding...' : 'Add Category'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setShowAddCategoryDialog(false)
+                      setNewCategoryName('')
+                    }}
+                    className="flex-1"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   )
 }

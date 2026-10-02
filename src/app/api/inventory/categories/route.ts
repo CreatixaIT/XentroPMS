@@ -46,6 +46,13 @@ export async function POST(request: NextRequest) {
       )
     }
     
+    if (error instanceof Error && error.message.includes('already exists')) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 409 }
+      )
+    }
+    
     return NextResponse.json(
       { error: 'Failed to create category' },
       { status: 500 }

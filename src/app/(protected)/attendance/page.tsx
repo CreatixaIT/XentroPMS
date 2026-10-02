@@ -1,13 +1,15 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { MapPin, CheckCircle, XCircle, AlertCircle } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { MapPin, CheckCircle, XCircle, AlertCircle, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import type { AttendanceRecord, AttendanceStatus } from '@/lib/attendance/types'
 
 export default function AttendancePage() {
+  const router = useRouter()
   const [user, setUser] = useState<{ full_name: string; designation: string } | null>(null)
   const [attendance, setAttendance] = useState<AttendanceRecord | null>(null)
   const [status, setStatus] = useState<AttendanceStatus>('not_recorded')
@@ -24,6 +26,7 @@ export default function AttendancePage() {
   } | null>(null)
   const [history, setHistory] = useState<AttendanceRecord[]>([])
   const [currentDhakaTime, setCurrentDhakaTime] = useState('')
+  const [isAdmin, setIsAdmin] = useState(false)
 
   // Update Bangladesh time every second
   useEffect(() => {
@@ -88,6 +91,21 @@ export default function AttendancePage() {
       await loadHistory()
     })()
   }, [loadAttendance, loadHistory])
+
+  // Load admin status and users
+  useEffect(() => {
+    async function loadAdminStatus() {
+      try {
+        const adminResponse = await fetch('/api/auth/check-admin')
+        const adminData = await adminResponse.json()
+        setIsAdmin(adminData.is_admin)
+      } catch (error) {
+        console.error('Error loading admin status:', error)
+      }
+    }
+    
+    loadAdminStatus()
+  }, [])
 
   const getLocation = (): Promise<GeolocationPosition> => {
     return new Promise((resolve, reject) => {
@@ -299,11 +317,22 @@ export default function AttendancePage() {
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-50">Attendance</h1>
-        <p className="text-slate-500 dark:text-slate-400 mt-1">
-          {user?.full_name} • {user?.designation}
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-50">Attendance</h1>
+          <p className="text-slate-500 dark:text-slate-400 mt-1">
+            {user?.full_name} • {user?.designation}
+          </p>
+        </div>
+        {isAdmin && (
+          <Button
+            variant="outline"
+            onClick={() => router.push('/attendance/employees')}
+          >
+            <Users className="h-4 w-4 mr-2" />
+            View Employees
+          </Button>
+        )}
       </div>
 
       {/* Location explanation */}
@@ -437,9 +466,14 @@ export default function AttendancePage() {
                 </div>
               </div>
 
-              <div className="text-center text-sm text-slate-500">
-                Attendance for today is complete
-              </div>
+              <Button
+                disabled={true}
+                size="lg"
+                className="w-full"
+                variant="outline"
+              >
+                Attendance Complete
+              </Button>
             </div>
           )}
 

@@ -83,20 +83,129 @@ async function getAttendanceSummary(supabase: SupabaseClient, userId: string) {
 }
 
 async function getTaskSummary() {
-  // Tasks not implemented yet - return placeholder
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  
+  if (!user) {
+    return {
+      pending_count: 0,
+      completed_count: 0,
+      upcoming_tasks: [],
+    }
+  }
+
+  // Get pending tasks (not completed) assigned to user
+  const { count: pendingCount } = await supabase
+    .from('project_tasks')
+    .select('*', { count: 'exact', head: true })
+    .eq('assigned_to', user.id)
+    .not('status', 'eq', 'COMPLETED')
+
+  // Get completed tasks assigned to user
+  const { count: completedCount } = await supabase
+    .from('project_tasks')
+    .select('*', { count: 'exact', head: true })
+    .eq('assigned_to', user.id)
+    .eq('status', 'COMPLETED')
+
+  // Get upcoming tasks (due soon)
+  const { data: upcomingTasks } = await supabase
+    .from('project_tasks')
+    .select(`
+      id,
+      title,
+      due_date,
+      priority,
+      status,
+      projects (
+        id,
+        name
+      )
+    `)
+    .eq('assigned_to', user.id)
+    .not('status', 'eq', 'COMPLETED')
+    .order('due_date', { ascending: true })
+    .limit(5)
+
   return {
-    pending_count: 0,
-    completed_count: 0,
-    upcoming_tasks: [],
+    pending_count: pendingCount || 0,
+    completed_count: completedCount || 0,
+    upcoming_tasks: upcomingTasks || [],
   }
 }
 
 async function getProjectSummary() {
-  // Projects not implemented yet - return placeholder
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  
+  if (!user) {
+    return {
+      active_count: 0,
+      completed_count: 0,
+      active_projects: [],
+    }
+  }
+
+  // Get projects where user is a member or creator
+  const { data: userProjects } = await supabase
+    .from('project_members')
+    .select('project_id')
+    .eq('user_id', user.id)
+
+  const projectIds = userProjects?.map(p => p.project_id) || []
+
+  // Also include projects created by user
+  const { data: createdProjects } = await supabase
+    .from('projects')
+    .select('id')
+    .eq('created_by', user.id)
+
+  const createdIds = createdProjects?.map(p => p.id) || []
+
+  // Combine both sets
+  const allProjectIds = [...new Set([...projectIds, ...createdIds])]
+
+  if (allProjectIds.length === 0) {
+    return {
+      active_count: 0,
+      completed_count: 0,
+      active_projects: [],
+    }
+  }
+
+  // Get active projects
+  const { count: activeCount } = await supabase
+    .from('projects')
+    .select('*', { count: 'exact', head: true })
+    .in('id', allProjectIds)
+    .eq('status', 'ACTIVE')
+
+  // Get completed projects
+  const { count: completedCount } = await supabase
+    .from('projects')
+    .select('*', { count: 'exact', head: true })
+    .in('id', allProjectIds)
+    .eq('status', 'COMPLETED')
+
+  // Get active projects with details
+  const { data: activeProjects } = await supabase
+    .from('projects')
+    .select(`
+      id,
+      name,
+      status,
+      start_date,
+      target_end_date
+    `)
+    .in('id', allProjectIds)
+    .eq('status', 'ACTIVE')
+    .order('created_at', { ascending: false })
+    .limit(5)
+
   return {
-    active_count: 0,
-    completed_count: 0,
-    active_projects: [],
+    active_count: activeCount || 0,
+    completed_count: completedCount || 0,
+    active_projects: activeProjects || [],
   }
 }
 
