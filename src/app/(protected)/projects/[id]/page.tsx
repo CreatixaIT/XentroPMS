@@ -73,6 +73,13 @@ interface Activity {
   id: string
   activity_type: string
   description: string
+  metadata: {
+    completed?: string
+    working_on?: string
+    remains?: string
+    blockers?: string
+    progress?: number
+  }
   created_at: string
   profiles: {
     id: string
@@ -112,6 +119,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     progress: 0
   })
   const [submittingUpdate, setSubmittingUpdate] = useState(false)
+  const [workUpdates, setWorkUpdates] = useState<Activity[]>([])
 
   useEffect(() => {
     const init = async () => {
@@ -168,10 +176,25 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     }
   }, [projectId])
 
+  const loadWorkUpdates = useCallback(async () => {
+    if (!projectId) return
+
+    try {
+      const response = await fetch(`/api/projects/${projectId}/updates`)
+      if (response.ok) {
+        const data = await response.json()
+        setWorkUpdates(data.data || [])
+      }
+    } catch (error) {
+      console.error('Error loading work updates:', error)
+    }
+  }, [projectId])
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadProject()
-  }, [loadProject])
+    loadWorkUpdates()
+  }, [loadProject, loadWorkUpdates])
 
   const handleStatusChange = async (newStatus: ProjectStatus) => {
     setUpdatingStatus(true)
@@ -240,19 +263,20 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const handleSubmitWorkUpdate = async () => {
     setSubmittingUpdate(true)
     try {
-      const response = await fetch(`/api/projects/${projectId}/tasks`, {
+      const response = await fetch(`/api/projects/${projectId}/updates`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          title: 'Daily Work Update',
-          description: `Completed: ${workUpdate.completed}\nWorking on: ${workUpdate.working_on}\nRemains: ${workUpdate.remains}\nBlockers: ${workUpdate.blockers}`,
-          priority: 'MEDIUM',
-          project_id: projectId
+          completed: workUpdate.completed,
+          working_on: workUpdate.working_on,
+          remains: workUpdate.remains,
+          blockers: workUpdate.blockers,
+          progress: workUpdate.progress
         })
       })
 
       if (response.ok) {
-        loadProject()
+        loadWorkUpdates()
         setShowWorkUpdateDialog(false)
         setWorkUpdate({
           completed: '',
@@ -613,6 +637,17 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                     placeholder="Any blockers or issues..."
                   />
                 </div>
+                <div>
+                  <Label>Progress ({workUpdate.progress}%)</Label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={workUpdate.progress}
+                    onChange={(e) => setWorkUpdate({ ...workUpdate, progress: parseInt(e.target.value) })}
+                    className="w-full mt-1"
+                  />
+                </div>
                 <div className="flex gap-2">
                   <Button
                     onClick={handleSubmitWorkUpdate}
@@ -643,6 +678,64 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           </Card>
         </div>
       )}
+
+      {/* Recent Work Updates */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Recent Work Updates ({workUpdates.length})</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {workUpdates.length === 0 ? (
+            <div className="text-center text-muted-foreground py-8">
+              No work updates yet
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {workUpdates.map((update) => (
+                <div key={update.id} className="border-b pb-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="font-medium">
+                      {update.profiles?.full_name || 'Unknown'}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      {new Date(update.created_at).toLocaleDateString()}
+                    </div>
+                  </div>
+                  {update.metadata && (
+                    <div className="space-y-2 text-sm">
+                      {update.metadata.completed && (
+                        <div>
+                          <span className="font-medium">Completed:</span> {update.metadata.completed}
+                        </div>
+                      )}
+                      {update.metadata.working_on && (
+                        <div>
+                          <span className="font-medium">Working on:</span> {update.metadata.working_on}
+                        </div>
+                      )}
+                      {update.metadata.remains && (
+                        <div>
+                          <span className="font-medium">Remains:</span> {update.metadata.remains}
+                        </div>
+                      )}
+                      {update.metadata.blockers && (
+                        <div>
+                          <span className="font-medium">Blockers:</span> {update.metadata.blockers}
+                        </div>
+                      )}
+                      {update.metadata.progress > 0 && (
+                        <div>
+                          <span className="font-medium">Progress:</span> {update.metadata.progress}%
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Components */}
       <Card>
