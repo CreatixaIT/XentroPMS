@@ -39,6 +39,12 @@ export default function NewProjectPage() {
         const data = await response.json()
         setIsAdmin(data.is_admin)
         
+        if (!data.is_admin) {
+          // Redirect non-admin users
+          router.push('/projects')
+          return
+        }
+        
         if (data.is_admin) {
           const usersResponse = await fetch('/api/users')
           if (usersResponse.ok) {
@@ -48,11 +54,12 @@ export default function NewProjectPage() {
         }
       } catch (error) {
         console.error('Error checking admin status:', error)
+        router.push('/projects')
       }
     }
     
     checkAdmin()
-  }, [])
+  }, [router])
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()

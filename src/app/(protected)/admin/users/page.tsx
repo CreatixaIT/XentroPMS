@@ -49,20 +49,22 @@ export default function UserManagementPage() {
   })
   const [saving, setSaving] = useState(false)
 
-  useEffect(() => {
-    async function loadUsers() {
-      try {
-        const response = await fetch('/api/users')
-        if (response.ok) {
-          const data = await response.json()
-          setUsers(data.users)
-        }
-      } catch (error) {
-        console.error('Error loading users:', error)
+  const loadUsers = async () => {
+    try {
+      const response = await fetch('/api/users')
+      if (response.ok) {
+        const data = await response.json()
+        setUsers(data.users)
       }
+    } catch (error) {
+      console.error('Error loading users:', error)
     }
-    
-    loadUsers()
+  }
+
+  useEffect(() => {
+    (async () => {
+      await loadUsers()
+    })()
   }, [])
 
   const handleAddUser = async () => {
@@ -336,7 +338,7 @@ export default function UserManagementPage() {
                 </div>
                 <div>
                   <Label htmlFor="role">Role *</Label>
-                  <Select value={formData.role} onValueChange={(value: 'SUPER_ADMIN' | 'TEAM_LEADER' | 'EMPLOYEE') => setFormData({ ...formData, role: value })}>
+                  <Select value={formData.role} onValueChange={(value: 'SUPER_ADMIN' | 'TEAM_LEADER' | 'EMPLOYEE' | null) => value && setFormData({ ...formData, role: value })}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -404,7 +406,7 @@ export default function UserManagementPage() {
                 </div>
                 <div>
                   <Label htmlFor="edit_role">Role</Label>
-                  <Select value={formData.role} onValueChange={(value: 'SUPER_ADMIN' | 'TEAM_LEADER' | 'EMPLOYEE') => setFormData({ ...formData, role: value })}>
+                  <Select value={formData.role} onValueChange={(value: 'SUPER_ADMIN' | 'TEAM_LEADER' | 'EMPLOYEE' | null) => value && setFormData({ ...formData, role: value })}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -417,7 +419,7 @@ export default function UserManagementPage() {
                 </div>
                 <div>
                   <Label htmlFor="edit_status">Status</Label>
-                  <Select value={formData.status} onValueChange={(value: 'ACTIVE' | 'INACTIVE') => setFormData({ ...formData, status: value })}>
+                  <Select value={formData.status} onValueChange={(value: 'ACTIVE' | 'INACTIVE' | null) => value && setFormData({ ...formData, status: value })}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>

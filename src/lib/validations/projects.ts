@@ -82,9 +82,11 @@ export const updateProjectComponentSchema = z.object({
 export const createTaskSchema = z.object({
   title: z.string().min(1, 'Task title is required').max(200, 'Task title too long'),
   description: z.string().max(2000, 'Description too long').optional(),
+  project_id: z.string().uuid('Invalid project ID').optional().nullable(),
   assigned_to: z.string().uuid('Invalid user ID').optional(),
   priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']).default('MEDIUM'),
-  due_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format YYYY-MM-DD').optional()
+  due_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format YYYY-MM-DD').optional(),
+  task_type: z.enum(['ONE_TIME', 'DAILY', 'WEEKLY']).default('ONE_TIME')
 }).refine(
   (data) => {
     if (data.due_date) {

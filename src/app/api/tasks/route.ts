@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuthenticatedUser } from '@/lib/auth/authorization'
-import { getTasks } from '@/lib/projects/service'
-import { taskListSchema } from '@/lib/validations/projects'
+import { getTasks, createTask } from '@/lib/projects/service'
+import { taskListSchema, createTaskSchema } from '@/lib/validations/projects'
 
 export async function GET(request: NextRequest) {
   try {
@@ -38,13 +38,51 @@ export async function GET(request: NextRequest) {
     
     if (error instanceof Error && error.name === 'ZodError') {
       return NextResponse.json(
-        { error: 'Invalid query parameters' },
+        { success: false, error: 'Invalid query parameters' },
         { status: 400 }
       )
     }
     
     return NextResponse.json(
-      { error: 'Failed to fetch tasks' },
+      { success: false, error: 'Failed to fetch tasks' },
+      { status: 500 }
+    )
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const user = await requireAuthenticatedUser()
+    
+    const body = await request.json()
+    const validatedData = createTaskSchema.parse(body)
+    
+    // If user is not SUPER_ADMIN, they can only create tasks for themselves
+    if (user.role !== 'SUPER_ADMIN') {
+      validatedData.assigned_to = user.id
+    }
+    
+    // For personal tasks (no project_id), create a personal task
+    // For project tasks, use the project_id
+    const projectId = validatedData.project_id || 'personal'
+    const task = await createTask(projectId, validatedData, user.id)
+    
+    return NextResponse.json({ 
+      success: true,
+      task 
+    })
+  } catch (error: unknown) {
+    console.error('Create task error:', error)
+    
+    if (error instanceof Error && error.name === 'ZodError') {
+      return NextResponse.json(
+        { success: false, error: 'Invalid input data' },
+        { status: 400 }
+      )
+    }
+    
+    return NextResponse.json(
+      { success: false, error: error instanceof Error ? error.message : 'Failed to create task' },
       { status: 500 }
     )
   }

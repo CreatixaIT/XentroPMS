@@ -569,8 +569,8 @@ export async function getTaskById(id: string) {
 export async function createTask(projectId: string, data: CreateTaskInput, userId: string) {
   const supabase = await createClient()
   
-  // If assigned_to is provided, verify user is a project member
-  if (data.assigned_to) {
+  // If assigned_to is provided and it's a project task (not personal), verify user is a project member
+  if (data.assigned_to && projectId !== 'personal') {
     const { data: member } = await supabase
       .from('project_members')
       .select('id')
@@ -586,7 +586,7 @@ export async function createTask(projectId: string, data: CreateTaskInput, userI
   const { data: task, error } = await supabase
     .from('project_tasks')
     .insert({
-      project_id: projectId,
+      project_id: projectId === 'personal' ? null : projectId,
       title: data.title,
       description: data.description,
       assigned_to: data.assigned_to || null,

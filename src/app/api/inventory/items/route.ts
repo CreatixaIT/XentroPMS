@@ -29,13 +29,13 @@ export async function GET(request: NextRequest) {
     
     if (error instanceof Error && error.name === 'ZodError') {
       return NextResponse.json(
-        { error: 'Invalid query parameters' },
+        { success: false, error: 'Invalid query parameters' },
         { status: 400 }
       )
     }
     
     return NextResponse.json(
-      { error: 'Failed to fetch inventory items' },
+      { success: false, error: 'Failed to fetch inventory items' },
       { status: 500 }
     )
   }

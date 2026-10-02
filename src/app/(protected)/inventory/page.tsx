@@ -40,6 +40,19 @@ export default function InventoryPage() {
   const [showAddCategoryDialog, setShowAddCategoryDialog] = useState(false)
   const [newCategoryName, setNewCategoryName] = useState('')
   const [addingCategory, setAddingCategory] = useState(false)
+  const [showAddItemDialog, setShowAddItemDialog] = useState(false)
+  const [itemFormData, setItemFormData] = useState({
+    name: '',
+    sku: '',
+    category_id: '' as string,
+    unit: '',
+    quantity: 0,
+    reorder_level: 0,
+    unit_cost: 0,
+    selling_price: '' as string,
+    description: ''
+  })
+  const [addingItem, setAddingItem] = useState(false)
 
   const loadStats = useCallback(async () => {
     try {
@@ -92,6 +105,53 @@ export default function InventoryPage() {
       alert('Failed to add category')
     } finally {
       setAddingCategory(false)
+    }
+  }
+
+  const handleAddItem = async () => {
+    if (!itemFormData.name || !itemFormData.sku || !itemFormData.category_id || !itemFormData.unit) {
+      alert('Please fill in all required fields')
+      return
+    }
+
+    setAddingItem(true)
+    try {
+      const response = await fetch('/api/inventory/items', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...itemFormData,
+          initial_quantity: itemFormData.quantity,
+          reorder_level: itemFormData.reorder_level,
+          unit_cost: itemFormData.unit_cost,
+          selling_price: itemFormData.selling_price ? parseFloat(itemFormData.selling_price) : null
+        })
+      })
+
+      if (response.ok) {
+        await loadItems()
+        await loadStats()
+        setShowAddItemDialog(false)
+        setItemFormData({
+          name: '',
+          sku: '',
+          category_id: '',
+          unit: '',
+          quantity: 0,
+          reorder_level: 0,
+          unit_cost: 0,
+          selling_price: '',
+          description: ''
+        })
+      } else {
+        const error = await response.json()
+        alert(error.error || 'Failed to add item')
+      }
+    } catch (error) {
+      console.error('Error adding item:', error)
+      alert('Failed to add item')
+    } finally {
+      setAddingItem(false)
     }
   }
 
@@ -155,9 +215,15 @@ export default function InventoryPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Inventory</h1>
-        <p className="text-muted-foreground">Manage inventory items and stock levels</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Inventory</h1>
+          <p className="text-muted-foreground">Manage inventory items and stock levels</p>
+        </div>
+        <Button onClick={() => setShowAddItemDialog(true)}>
+          <Plus className="h-4 w-4 mr-2" />
+          Add Item
+        </Button>
       </div>
 
       {/* Stats Cards */}
@@ -379,6 +445,150 @@ export default function InventoryPage() {
                     onClick={() => {
                       setShowAddCategoryDialog(false)
                       setNewCategoryName('')
+                    }}
+                    className="flex-1"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Add Item Dialog */}
+      {showAddItemDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <Card className="w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <CardHeader>
+              <CardTitle>Add Inventory Item</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="item-name">Item Name *</Label>
+                  <Input
+                    id="item-name"
+                    value={itemFormData.name}
+                    onChange={(e) => setItemFormData({ ...itemFormData, name: e.target.value })}
+                    placeholder="Enter item name"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="item-sku">SKU *</Label>
+                  <Input
+                    id="item-sku"
+                    value={itemFormData.sku}
+                    onChange={(e) => setItemFormData({ ...itemFormData, sku: e.target.value })}
+                    placeholder="Enter SKU"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="item-category">Category *</Label>
+                  <Select value={itemFormData.category_id} onValueChange={(value: string | null) => value && setItemFormData({ ...itemFormData, category_id: value })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categories.map(cat => (
+                        <SelectItem key={cat.id} value={cat.id}>
+                          {cat.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="item-unit">Unit *</Label>
+                  <Input
+                    id="item-unit"
+                    value={itemFormData.unit}
+                    onChange={(e) => setItemFormData({ ...itemFormData, unit: e.target.value })}
+                    placeholder="e.g., pcs, kg, m"
+                  />
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <Label htmlFor="item-quantity">Initial Quantity</Label>
+                    <Input
+                      id="item-quantity"
+                      type="number"
+                      value={itemFormData.quantity}
+                      onChange={(e) => setItemFormData({ ...itemFormData, quantity: parseFloat(e.target.value) || 0 })}
+                      min="0"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="item-reorder">Reorder Level</Label>
+                    <Input
+                      id="item-reorder"
+                      type="number"
+                      value={itemFormData.reorder_level}
+                      onChange={(e) => setItemFormData({ ...itemFormData, reorder_level: parseFloat(e.target.value) || 0 })}
+                      min="0"
+                    />
+                  </div>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <Label htmlFor="item-cost">Unit Cost</Label>
+                    <Input
+                      id="item-cost"
+                      type="number"
+                      value={itemFormData.unit_cost}
+                      onChange={(e) => setItemFormData({ ...itemFormData, unit_cost: parseFloat(e.target.value) || 0 })}
+                      min="0"
+                      step="0.01"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="item-price">Selling Price</Label>
+                    <Input
+                      id="item-price"
+                      type="number"
+                      value={itemFormData.selling_price}
+                      onChange={(e) => setItemFormData({ ...itemFormData, selling_price: e.target.value })}
+                      min="0"
+                      step="0.01"
+                      placeholder="Optional"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <Label htmlFor="item-description">Description</Label>
+                  <textarea
+                    id="item-description"
+                    className="w-full px-3 py-2 border rounded-md"
+                    rows={3}
+                    value={itemFormData.description}
+                    onChange={(e) => setItemFormData({ ...itemFormData, description: e.target.value })}
+                    placeholder="Item description (optional)"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleAddItem}
+                    disabled={addingItem}
+                    className="flex-1"
+                  >
+                    {addingItem ? 'Adding...' : 'Add Item'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setShowAddItemDialog(false)
+                      setItemFormData({
+                        name: '',
+                        sku: '',
+                        category_id: '',
+                        unit: '',
+                        quantity: 0,
+                        reorder_level: 0,
+                        unit_cost: 0,
+                        selling_price: '',
+                        description: ''
+                      })
                     }}
                     className="flex-1"
                   >

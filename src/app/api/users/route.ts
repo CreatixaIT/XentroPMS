@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireSuperAdmin } from '@/lib/auth/authorization'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createAdminClient } from '@/lib/supabase/server'
 
 export async function GET() {
   try {
@@ -14,7 +14,11 @@ export async function GET() {
       .order('full_name', { ascending: true })
     
     if (error) {
-      throw new Error(`Failed to fetch users: ${error.message}`)
+      console.error('Fetch users error:', error)
+      return NextResponse.json(
+        { success: false, error: 'Failed to fetch users' },
+        { status: 500 }
+      )
     }
     
     return NextResponse.json({ 
@@ -26,13 +30,13 @@ export async function GET() {
     
     if (error instanceof Error && error.message.includes('SUPER_ADMIN')) {
       return NextResponse.json(
-        { error: 'Unauthorized' },
+        { success: false, error: 'Unauthorized' },
         { status: 403 }
       )
     }
     
     return NextResponse.json(
-      { error: 'Failed to fetch users' },
+      { success: false, error: 'Failed to fetch users' },
       { status: 500 }
     )
   }
@@ -47,12 +51,12 @@ export async function POST(request: NextRequest) {
     
     if (!full_name || !email || !password) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { success: false, error: 'Missing required fields' },
         { status: 400 }
       )
     }
     
-    const supabase = await createClient()
+    const supabase = await createAdminClient()
     
     // Create auth user
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
@@ -62,7 +66,11 @@ export async function POST(request: NextRequest) {
     })
     
     if (authError) {
-      throw new Error(`Failed to create auth user: ${authError.message}`)
+      console.error('Auth user creation error:', authError)
+      return NextResponse.json(
+        { success: false, error: authError.message || 'Failed to create user account' },
+        { status: 400 }
+      )
     }
     
     // Create profile
@@ -78,27 +86,31 @@ export async function POST(request: NextRequest) {
       })
     
     if (profileError) {
+      console.error('Profile creation error:', profileError)
       // Rollback auth user creation
       await supabase.auth.admin.deleteUser(authData.user.id)
-      throw new Error(`Failed to create profile: ${profileError.message}`)
+      return NextResponse.json(
+        { success: false, error: profileError.message || 'Failed to create user profile' },
+        { status: 500 }
+      )
     }
     
     return NextResponse.json({ 
       success: true,
-      user: { id: authData.user.id, email, full_name, role }
+      user: { id: authData.user.id, email, full_name, role: role || 'EMPLOYEE' }
     })
   } catch (error: unknown) {
     console.error('Create user error:', error)
     
     if (error instanceof Error && error.message.includes('SUPER_ADMIN')) {
       return NextResponse.json(
-        { error: 'Unauthorized' },
+        { success: false, error: 'Unauthorized' },
         { status: 403 }
       )
     }
     
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to create user' },
+      { success: false, error: error instanceof Error ? error.message : 'Failed to create user' },
       { status: 500 }
     )
   }

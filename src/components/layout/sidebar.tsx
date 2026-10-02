@@ -12,12 +12,11 @@ import {
   Bell, 
   BarChart3, 
   User, 
-  Settings,
   Menu,
   X
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { AuthUser } from '@/lib/auth/authorization'
 
 interface SidebarProps {
@@ -28,19 +27,35 @@ const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Attendance', href: '/attendance', icon: Clock },
   { name: 'Inventory', href: '/inventory', icon: Package },
-  { name: 'Projects', href: '/projects', icon: FolderKanban },
   { name: 'Tasks', href: '/tasks', icon: CheckSquare },
   { name: 'Notifications', href: '/notifications', icon: Bell },
   { name: 'Reports', href: '/reports', icon: BarChart3 },
 ]
 
-const adminNavigation = [
-  { name: 'Administration', href: '/admin', icon: Settings },
-]
-
 export function Sidebar({ user }: SidebarProps) {
   const pathname = usePathname()
   const [isOpen, setIsOpen] = useState(false)
+  const [showProjects, setShowProjects] = useState(false)
+
+  useEffect(() => {
+    // Only show Projects if SUPER_ADMIN or if user has assigned projects
+    const checkProjects = async () => {
+      if (user.role === 'SUPER_ADMIN') {
+        setShowProjects(true)
+      } else {
+        // Check if user has assigned projects
+        try {
+          const response = await fetch(`/api/projects/user/${user.id}`)
+          const data = await response.json()
+          setShowProjects(data.projects && data.projects.length > 0)
+        } catch {
+          setShowProjects(false)
+        }
+      }
+    }
+    
+    checkProjects()
+  }, [user.id, user.role])
 
   return (
     <>
@@ -92,6 +107,20 @@ export function Sidebar({ user }: SidebarProps) {
                   {item.name}
                 </Link>
               ))}
+              {showProjects && (
+                <Link
+                  href="/projects"
+                  className={cn(
+                    'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                    pathname === '/projects'
+                      ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
+                      : 'text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
+                  )}
+                >
+                  <FolderKanban className="h-5 w-5" />
+                  Projects
+                </Link>
+              )}
             </div>
 
             {/* Admin-only section */}
@@ -101,21 +130,18 @@ export function Sidebar({ user }: SidebarProps) {
                   Administration
                 </p>
                 <div className="space-y-1">
-                  {adminNavigation.map((item) => (
-                    <Link
-                      key={item.name}
-                      href={item.href}
-                      className={cn(
-                        'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
-                        pathname === item.href
-                          ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
-                          : 'text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
-                      )}
-                    >
-                      <item.icon className="h-5 w-5" />
-                      {item.name}
-                    </Link>
-                  ))}
+                  <Link
+                    href="/admin/users"
+                    className={cn(
+                      'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                      pathname === '/admin/users'
+                        ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
+                        : 'text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
+                    )}
+                  >
+                    <User className="h-5 w-5" />
+                    User Management
+                  </Link>
                 </div>
               </div>
             )}

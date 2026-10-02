@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAuthenticatedUser } from '@/lib/auth/authorization'
+import { requireAuthenticatedUser, requireSuperAdmin } from '@/lib/auth/authorization'
 import { getProjects, createProject } from '@/lib/projects/service'
 import { createProjectSchema, projectListSchema } from '@/lib/validations/projects'
 
@@ -44,6 +44,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    await requireSuperAdmin()
     const user = await requireAuthenticatedUser()
     
     const body = await request.json()
@@ -58,15 +59,22 @@ export async function POST(request: NextRequest) {
   } catch (error: unknown) {
     console.error('Create project error:', error)
     
+    if (error instanceof Error && error.message.includes('SUPER_ADMIN')) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized - Only SUPER_ADMIN can create projects' },
+        { status: 403 }
+      )
+    }
+    
     if (error instanceof Error && error.name === 'ZodError') {
       return NextResponse.json(
-        { error: 'Invalid input data' },
+        { success: false, error: 'Invalid input data' },
         { status: 400 }
       )
     }
     
     return NextResponse.json(
-      { error: 'Failed to create project' },
+      { success: false, error: error instanceof Error ? error.message : 'Failed to create project' },
       { status: 500 }
     )
   }

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireSuperAdmin } from '@/lib/auth/authorization'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createAdminClient } from '@/lib/supabase/server'
 
 export async function PATCH(
   request: NextRequest,
@@ -24,7 +24,7 @@ export async function PATCH(
     
     if (!existingUser) {
       return NextResponse.json(
-        { error: 'User not found' },
+        { success: false, error: 'User not found' },
         { status: 404 }
       )
     }
@@ -33,7 +33,7 @@ export async function PATCH(
     const currentUser = await supabase.auth.getUser()
     if (currentUser.data.user?.id === id && role && role !== 'SUPER_ADMIN') {
       return NextResponse.json(
-        { error: 'Cannot remove your own SUPER_ADMIN role' },
+        { success: false, error: 'Cannot remove your own SUPER_ADMIN role' },
         { status: 400 }
       )
     }
@@ -52,7 +52,11 @@ export async function PATCH(
       .single()
     
     if (error) {
-      throw new Error(`Failed to update user: ${error.message}`)
+      console.error('Update user error:', error)
+      return NextResponse.json(
+        { success: false, error: error.message || 'Failed to update user' },
+        { status: 500 }
+      )
     }
     
     return NextResponse.json({ 
@@ -64,13 +68,13 @@ export async function PATCH(
     
     if (error instanceof Error && error.message.includes('SUPER_ADMIN')) {
       return NextResponse.json(
-        { error: 'Unauthorized' },
+        { success: false, error: 'Unauthorized' },
         { status: 403 }
       )
     }
     
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to update user' },
+      { success: false, error: error instanceof Error ? error.message : 'Failed to update user' },
       { status: 500 }
     )
   }
@@ -127,7 +131,11 @@ export async function DELETE(
         .eq('id', id)
       
       if (updateError) {
-        throw new Error(`Failed to deactivate user: ${updateError.message}`)
+        console.error('Deactivate user error:', updateError)
+        return NextResponse.json(
+          { success: false, error: updateError.message || 'Failed to deactivate user' },
+          { status: 500 }
+        )
       }
       
       return NextResponse.json({ 
@@ -143,14 +151,23 @@ export async function DELETE(
       .eq('id', id)
     
     if (profileError) {
-      throw new Error(`Failed to delete profile: ${profileError.message}`)
+      console.error('Delete profile error:', profileError)
+      return NextResponse.json(
+        { success: false, error: profileError.message || 'Failed to delete profile' },
+        { status: 500 }
+      )
     }
     
-    // Delete auth user
-    const { error: authError } = await supabase.auth.admin.deleteUser(id)
+    // Delete auth user using admin client
+    const adminSupabase = await createAdminClient()
+    const { error: authError } = await adminSupabase.auth.admin.deleteUser(id)
     
     if (authError) {
-      throw new Error(`Failed to delete auth user: ${authError.message}`)
+      console.error('Delete auth user error:', authError)
+      return NextResponse.json(
+        { success: false, error: authError.message || 'Failed to delete auth user' },
+        { status: 500 }
+      )
     }
     
     return NextResponse.json({ 
@@ -162,13 +179,13 @@ export async function DELETE(
     
     if (error instanceof Error && error.message.includes('SUPER_ADMIN')) {
       return NextResponse.json(
-        { error: 'Unauthorized' },
+        { success: false, error: 'Unauthorized' },
         { status: 403 }
       )
     }
     
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to delete user' },
+      { success: false, error: error instanceof Error ? error.message : 'Failed to delete user' },
       { status: 500 }
     )
   }

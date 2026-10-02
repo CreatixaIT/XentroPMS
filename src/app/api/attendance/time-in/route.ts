@@ -25,27 +25,34 @@ export async function POST(request: NextRequest) {
     
     if (error instanceof Error && error.name === 'ZodError') {
       return NextResponse.json(
-        { error: 'Invalid input data' },
+        { success: false, error: 'Invalid input data' },
         { status: 400 }
       )
     }
     
     if (error instanceof Error && error.message.includes('already recorded')) {
       return NextResponse.json(
-        { error: error.message },
+        { success: false, error: error.message },
         { status: 400 }
       )
     }
     
     if (error instanceof Error && error.message.includes('No active workplace')) {
       return NextResponse.json(
-        { error: 'No active workplace configuration found. Please contact administrator.' },
+        { success: false, error: 'No active workplace configuration found. Please contact administrator.' },
+        { status: 400 }
+      )
+    }
+    
+    if (error instanceof Error && error.message.includes('outside allowed radius')) {
+      return NextResponse.json(
+        { success: false, error: 'Location verification failed: You are outside the allowed workplace radius.' },
         { status: 400 }
       )
     }
     
     return NextResponse.json(
-      { error: 'Failed to record time in' },
+      { success: false, error: error instanceof Error ? error.message : 'Failed to record time in' },
       { status: 500 }
     )
   }

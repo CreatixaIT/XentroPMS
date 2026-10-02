@@ -2,11 +2,13 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { CheckSquare, Search, ArrowUpDown } from 'lucide-react'
+import { Search, ArrowUpDown, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { Textarea } from '@/components/ui/textarea'
 import {
   Table,
   TableBody,
@@ -56,9 +58,19 @@ export default function TasksPage() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<TaskStatus | ''>('')
   const [priorityFilter, setPriorityFilter] = useState<TaskPriority | ''>('')
+  const [frequencyFilter, setFrequencyFilter] = useState<string>('')
   const [sortBy, setSortBy] = useState<'title' | 'due_date' | 'priority' | 'status' | 'created_at'>('created_at')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
   const [total, setTotal] = useState(0)
+  const [showAddTaskDialog, setShowAddTaskDialog] = useState(false)
+  const [taskFormData, setTaskFormData] = useState({
+    title: '',
+    description: '',
+    priority: 'MEDIUM' as TaskPriority,
+    due_date: '',
+    task_type: 'ONE_TIME' as string
+  })
+  const [addingTask, setAddingTask] = useState(false)
 
   useEffect(() => {
     const loadTasks = async () => {
@@ -68,6 +80,7 @@ export default function TasksPage() {
         if (search) params.append('search', search)
         if (statusFilter) params.append('status', statusFilter)
         if (priorityFilter) params.append('priority', priorityFilter)
+        if (frequencyFilter) params.append('task_type', frequencyFilter)
         params.append('sort_by', sortBy)
         params.append('sort_order', sortOrder)
         params.append('limit', '50')
@@ -86,7 +99,7 @@ export default function TasksPage() {
     }
 
     loadTasks()
-  }, [search, statusFilter, priorityFilter, sortBy, sortOrder])
+  }, [search, statusFilter, priorityFilter, frequencyFilter, sortBy, sortOrder])
 
   const getStatusBadge = (status: TaskStatus) => {
     const styles = {
@@ -123,6 +136,70 @@ export default function TasksPage() {
     return new Date(dueDate) < new Date()
   }
 
+  const handleAddTask = async () => {
+    if (!taskFormData.title.trim()) {
+      alert('Task title is required')
+      return
+    }
+
+    setAddingTask(true)
+    try {
+      const response = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...taskFormData,
+          due_date: taskFormData.due_date || null
+        })
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setTasks([data.task, ...tasks])
+        setShowAddTaskDialog(false)
+        setTaskFormData({
+          title: '',
+          description: '',
+          priority: 'MEDIUM',
+          due_date: '',
+          task_type: 'ONE_TIME'
+        })
+      } else {
+        const error = await response.json()
+        alert(error.error || 'Failed to add task')
+      }
+    } catch (error) {
+      console.error('Error adding task:', error)
+      alert('Failed to add task')
+    } finally {
+      setAddingTask(false)
+    }
+  }
+
+  const handleUpdateStatus = async (taskId: string, newStatus: TaskStatus) => {
+    try {
+      const response = await fetch(`/api/tasks/${taskId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus })
+      })
+
+      if (response.ok) {
+        setTasks(tasks.map(task => 
+          task.id === taskId 
+            ? { ...task, status: newStatus, completed_at: newStatus === 'COMPLETED' ? new Date().toISOString() : task.completed_at }
+            : task
+        ))
+      } else {
+        const error = await response.json()
+        alert(error.error || 'Failed to update task status')
+      }
+    } catch (error) {
+      console.error('Error updating task status:', error)
+      alert('Failed to update task status')
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -133,9 +210,15 @@ export default function TasksPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Tasks</h1>
-        <p className="text-muted-foreground">Manage your tasks and track progress</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Tasks</h1>
+          <p className="text-muted-foreground">Manage your tasks and track progress</p>
+        </div>
+        <Button onClick={() => setShowAddTaskDialog(true)}>
+          <Plus className="h-4 w-4 mr-2" />
+          Add Task
+        </Button>
       </div>
 
       {/* Filters */}
@@ -152,7 +235,7 @@ export default function TasksPage() {
                   className="pl-8"
                 />
               </div>
-              <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as TaskStatus | '')}>
+              <Select value={statusFilter} onValueChange={(value: string | null) => value && setStatusFilter(value as TaskStatus | '')}>
                 <SelectTrigger className="w-[140px]">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
@@ -164,7 +247,7 @@ export default function TasksPage() {
                   <SelectItem value="COMPLETED">Completed</SelectItem>
                 </SelectContent>
               </Select>
-              <Select value={priorityFilter} onValueChange={(value) => setPriorityFilter(value as TaskPriority | '')}>
+              <Select value={priorityFilter} onValueChange={(value: string | null) => value && setPriorityFilter(value as TaskPriority | '')}>
                 <SelectTrigger className="w-[120px]">
                   <SelectValue placeholder="Priority" />
                 </SelectTrigger>
@@ -174,6 +257,17 @@ export default function TasksPage() {
                   <SelectItem value="MEDIUM">Medium</SelectItem>
                   <SelectItem value="HIGH">High</SelectItem>
                   <SelectItem value="URGENT">Urgent</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={frequencyFilter} onValueChange={(value: string | null) => value && setFrequencyFilter(value)}>
+                <SelectTrigger className="w-[120px]">
+                  <SelectValue placeholder="Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">All Types</SelectItem>
+                  <SelectItem value="ONE_TIME">One Time</SelectItem>
+                  <SelectItem value="DAILY">Daily</SelectItem>
+                  <SelectItem value="WEEKLY">Weekly</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -250,16 +344,32 @@ export default function TasksPage() {
                         ) : '-'}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            router.push(`/tasks/${task.id}`)
-                          }}
-                        >
-                          <CheckSquare className="h-4 w-4" />
-                        </Button>
+                        <div className="flex gap-1 justify-end">
+                          {task.status !== 'COMPLETED' && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleUpdateStatus(task.id, 'COMPLETED')
+                              }}
+                            >
+                              Done
+                            </Button>
+                          )}
+                          {task.status === 'TODO' && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleUpdateStatus(task.id, 'IN_PROGRESS')
+                              }}
+                            >
+                              Start
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
@@ -272,6 +382,103 @@ export default function TasksPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Add Task Dialog */}
+      {showAddTaskDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <Card className="w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <CardHeader>
+              <CardTitle>Add Task</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="task-title">Task Title *</Label>
+                  <Input
+                    id="task-title"
+                    value={taskFormData.title}
+                    onChange={(e) => setTaskFormData({ ...taskFormData, title: e.target.value })}
+                    placeholder="Enter task title"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="task-description">Description</Label>
+                  <Textarea
+                    id="task-description"
+                    value={taskFormData.description}
+                    onChange={(e) => setTaskFormData({ ...taskFormData, description: e.target.value })}
+                    placeholder="Task description (optional)"
+                    rows={3}
+                  />
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <Label htmlFor="task-priority">Priority</Label>
+                    <Select value={taskFormData.priority} onValueChange={(value: string | null) => value && setTaskFormData({ ...taskFormData, priority: value as TaskPriority })}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="LOW">Low</SelectItem>
+                        <SelectItem value="MEDIUM">Medium</SelectItem>
+                        <SelectItem value="HIGH">High</SelectItem>
+                        <SelectItem value="URGENT">Urgent</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="task-type">Type</Label>
+                    <Select value={taskFormData.task_type} onValueChange={(value: string | null) => value && setTaskFormData({ ...taskFormData, task_type: value })}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ONE_TIME">One Time</SelectItem>
+                        <SelectItem value="DAILY">Daily</SelectItem>
+                        <SelectItem value="WEEKLY">Weekly</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div>
+                  <Label htmlFor="task-due-date">Due Date</Label>
+                  <Input
+                    id="task-due-date"
+                    type="date"
+                    value={taskFormData.due_date}
+                    onChange={(e) => setTaskFormData({ ...taskFormData, due_date: e.target.value })}
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleAddTask}
+                    disabled={addingTask}
+                    className="flex-1"
+                  >
+                    {addingTask ? 'Adding...' : 'Add Task'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setShowAddTaskDialog(false)
+                      setTaskFormData({
+                        title: '',
+                        description: '',
+                        priority: 'MEDIUM',
+                        due_date: '',
+                        task_type: 'ONE_TIME'
+                      })
+                    }}
+                    className="flex-1"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   )
 }

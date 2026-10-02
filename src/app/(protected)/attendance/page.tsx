@@ -161,10 +161,11 @@ export default function AttendancePage() {
       const data = await response.json()
 
       if (!response.ok) {
-        if (data.error.includes('location') || data.error.includes('radius')) {
-          setLocationError(data.error)
+        const errorMsg = data.error || data.message || 'Failed to record time in'
+        if (errorMsg.includes('location') || errorMsg.includes('radius') || errorMsg.includes('Location')) {
+          setLocationError(errorMsg)
         } else {
-          setError(data.error)
+          setError(errorMsg)
         }
         return
       }
@@ -224,10 +225,11 @@ export default function AttendancePage() {
       const data = await response.json()
 
       if (!response.ok) {
-        if (data.error.includes('location') || data.error.includes('radius')) {
-          setLocationError(data.error)
+        const errorMsg = data.error || data.message || 'Failed to record time out'
+        if (errorMsg.includes('location') || errorMsg.includes('radius') || errorMsg.includes('Location')) {
+          setLocationError(errorMsg)
         } else {
-          setError(data.error)
+          setError(errorMsg)
         }
         return
       }

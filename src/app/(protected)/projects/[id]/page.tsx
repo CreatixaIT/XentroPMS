@@ -6,6 +6,8 @@ import { Users, Package, CheckCircle, Clock, ArrowLeft, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Textarea } from '@/components/ui/textarea'
+import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
@@ -101,6 +103,15 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const [isAdmin, setIsAdmin] = useState(false)
   const [availableUsers, setAvailableUsers] = useState<User[]>([])
   const [showAddMemberDialog, setShowAddMemberDialog] = useState(false)
+  const [showWorkUpdateDialog, setShowWorkUpdateDialog] = useState(false)
+  const [workUpdate, setWorkUpdate] = useState({
+    completed: '',
+    working_on: '',
+    remains: '',
+    blockers: '',
+    progress: 0
+  })
+  const [submittingUpdate, setSubmittingUpdate] = useState(false)
 
   useEffect(() => {
     const init = async () => {
@@ -226,6 +237,42 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     }
   }
 
+  const handleSubmitWorkUpdate = async () => {
+    setSubmittingUpdate(true)
+    try {
+      const response = await fetch(`/api/projects/${projectId}/tasks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: 'Daily Work Update',
+          description: `Completed: ${workUpdate.completed}\nWorking on: ${workUpdate.working_on}\nRemains: ${workUpdate.remains}\nBlockers: ${workUpdate.blockers}`,
+          priority: 'MEDIUM',
+          project_id: projectId
+        })
+      })
+
+      if (response.ok) {
+        loadProject()
+        setShowWorkUpdateDialog(false)
+        setWorkUpdate({
+          completed: '',
+          working_on: '',
+          remains: '',
+          blockers: '',
+          progress: 0
+        })
+      } else {
+        const error = await response.json()
+        alert(error.error || 'Failed to submit work update')
+      }
+    } catch (error) {
+      console.error('Error submitting work update:', error)
+      alert('Failed to submit work update')
+    } finally {
+      setSubmittingUpdate(false)
+    }
+  }
+
   const getStatusBadge = (status: ProjectStatus) => {
     const styles = {
       PLANNING: 'bg-blue-100 text-blue-800',
@@ -301,6 +348,18 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {!isAdmin && (
+            <Button onClick={() => setShowWorkUpdateDialog(true)}>
+              <Clock className="h-4 w-4 mr-2" />
+              Update Work
+            </Button>
+          )}
+          {isAdmin && (
+            <Button onClick={() => setShowAddMemberDialog(true)}>
+              <Users className="h-4 w-4 mr-2" />
+              Add Member
+            </Button>
+          )}
           <Select
             value={project.status}
             onValueChange={(value) => handleStatusChange(value as ProjectStatus)}
@@ -504,6 +563,82 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               >
                 Cancel
               </Button>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Work Update Dialog */}
+      {showWorkUpdateDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <Card className="w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <CardHeader>
+              <CardTitle>Today&apos;s Work Update</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div>
+                  <Label>What I completed</Label>
+                  <Textarea
+                    rows={3}
+                    value={workUpdate.completed}
+                    onChange={(e) => setWorkUpdate({ ...workUpdate, completed: e.target.value })}
+                    placeholder="Describe what you completed today..."
+                  />
+                </div>
+                <div>
+                  <Label>What I am currently working on</Label>
+                  <Textarea
+                    rows={3}
+                    value={workUpdate.working_on}
+                    onChange={(e) => setWorkUpdate({ ...workUpdate, working_on: e.target.value })}
+                    placeholder="Describe what you are working on..."
+                  />
+                </div>
+                <div>
+                  <Label>What remains</Label>
+                  <Textarea
+                    rows={3}
+                    value={workUpdate.remains}
+                    onChange={(e) => setWorkUpdate({ ...workUpdate, remains: e.target.value })}
+                    placeholder="Describe what work remains..."
+                  />
+                </div>
+                <div>
+                  <Label>Problems / Blockers</Label>
+                  <Textarea
+                    rows={3}
+                    value={workUpdate.blockers}
+                    onChange={(e) => setWorkUpdate({ ...workUpdate, blockers: e.target.value })}
+                    placeholder="Any blockers or issues..."
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleSubmitWorkUpdate}
+                    disabled={submittingUpdate}
+                    className="flex-1"
+                  >
+                    {submittingUpdate ? 'Submitting...' : 'Submit Update'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setShowWorkUpdateDialog(false)
+                      setWorkUpdate({
+                        completed: '',
+                        working_on: '',
+                        remains: '',
+                        blockers: '',
+                        progress: 0
+                      })
+                    }}
+                    className="flex-1"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>

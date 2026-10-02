@@ -23,7 +23,7 @@ export async function GET(
     console.error('Get task error:', error)
     
     return NextResponse.json(
-      { error: 'Failed to fetch task' },
+      { success: false, error: 'Failed to fetch task' },
       { status: 500 }
     )
   }
@@ -58,7 +58,7 @@ export async function PATCH(
     
     if (!task) {
       return NextResponse.json(
-        { error: 'Task not found' },
+        { success: false, error: 'Task not found' },
         { status: 404 }
       )
     }
@@ -67,7 +67,7 @@ export async function PATCH(
     if (user.role === 'EMPLOYEE') {
       if (task.assigned_to !== user.id) {
         return NextResponse.json(
-          { error: 'You can only update your own assigned tasks' },
+          { success: false, error: 'You can only update your own assigned tasks' },
           { status: 403 }
         )
       }
@@ -79,7 +79,7 @@ export async function PATCH(
       
       if (hasDisallowedField) {
         return NextResponse.json(
-          { error: 'Employees can only update task status' },
+          { success: false, error: 'Employees can only update task status' },
           { status: 403 }
         )
       }
@@ -96,7 +96,7 @@ export async function PATCH(
       
       if (!member) {
         return NextResponse.json(
-          { error: 'You are not a member of this project' },
+          { success: false, error: 'You are not a member of this project' },
           { status: 403 }
         )
       }
@@ -113,20 +113,20 @@ export async function PATCH(
     
     if (error instanceof Error && error.name === 'ZodError') {
       return NextResponse.json(
-        { error: 'Invalid input data' },
+        { success: false, error: 'Invalid input data' },
         { status: 400 }
       )
     }
     
     if (error instanceof Error && error.message.includes('not a member')) {
       return NextResponse.json(
-        { error: error.message },
+        { success: false, error: error.message },
         { status: 400 }
       )
     }
     
     return NextResponse.json(
-      { error: 'Failed to update task' },
+      { success: false, error: 'Failed to update task' },
       { status: 500 }
     )
   }
