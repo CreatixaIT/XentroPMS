@@ -23,9 +23,11 @@ export async function register(formData: FormData) {
   const validationResult = registerSchema.safeParse(rawData)
   
   if (!validationResult.success) {
+    const errors = validationResult.error.flatten()
+    // Return the first specific error message
+    const firstError = Object.values(errors.fieldErrors)[0]?.[0] || 'Validation failed'
     return {
-      error: 'Validation failed',
-      details: validationResult.error.flatten(),
+      error: firstError,
     }
   }
   
@@ -41,7 +43,7 @@ export async function register(formData: FormData) {
     
     if (existingUser) {
       return {
-        error: 'An account with this email already exists',
+        error: 'This email is already registered. Please use a different email or sign in.',
       }
     }
     
