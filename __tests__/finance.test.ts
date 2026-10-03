@@ -128,19 +128,19 @@ describe('Finance Security', () => {
   })
 
   it('should prevent employees from approving expenses', () => {
-    const role = 'EMPLOYEE'
+    const role: string = 'EMPLOYEE'
     const canApproveExpense = role === 'SUPER_ADMIN'
     expect(canApproveExpense).toBe(false)
   })
 
   it('should prevent employees from voiding expenses', () => {
-    const role = 'EMPLOYEE'
+    const role: string = 'EMPLOYEE'
     const canVoidExpense = role === 'SUPER_ADMIN'
     expect(canVoidExpense).toBe(false)
   })
 
   it('should prevent employees from modifying budgets', () => {
-    const role = 'EMPLOYEE'
+    const role: string = 'EMPLOYEE'
     const canModifyBudget = role === 'SUPER_ADMIN'
     expect(canModifyBudget).toBe(false)
   })

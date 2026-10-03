@@ -11,7 +11,16 @@
       "Exec(git add)",
       "Exec(git commit)",
       "Exec(npm test)",
-      "Exec(rm)"
+      "Exec(rm)",
+      "Exec(curl)",
+      "Exec(supabase db)",
+      "Exec(git status)",
+      "Exec(git diff)",
+      "Exec(git restore)",
+      "Exec(cat)",
+      "Exec(lsof)",
+      "Exec(cp)",
+      "Exec(git log)"
     ]
   }
 }
