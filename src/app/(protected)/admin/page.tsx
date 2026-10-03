@@ -36,17 +36,15 @@ export default function AdminPage() {
       title: 'User Management',
       description: 'Manage user accounts and permissions',
       icon: Users,
-      href: '#',
-      color: 'text-orange-600',
-      disabled: true
+      href: '/admin/users',
+      color: 'text-orange-600'
     },
     {
       title: 'Reports',
       description: 'View system reports and analytics',
       icon: BarChart3,
-      href: '#',
-      color: 'text-pink-600',
-      disabled: true
+      href: '/reports',
+      color: 'text-pink-600'
     }
   ]
 

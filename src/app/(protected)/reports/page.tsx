@@ -1,5 +1,5 @@
-import { ComingSoon } from '@/components/layout/coming-soon'
+import { redirect } from 'next/navigation'
 
 export default function ReportsPage() {
-  return <ComingSoon module="Reports" />
+  redirect('/admin/finance')
 }
