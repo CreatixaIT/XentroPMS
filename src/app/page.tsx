@@ -1,6 +1,24 @@
+import Link from 'next/link'
+
 export default function Home() {
   return (
     <div className="flex flex-col flex-1 items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 font-sans">
+      {/* Header */}
+      <header className="w-full px-6 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="h-8 w-8 rounded-lg bg-blue-600 flex items-center justify-center">
+            <span className="text-white font-bold text-sm">X</span>
+          </div>
+          <span className="font-bold text-slate-900 dark:text-slate-50">Xentro PMS</span>
+        </div>
+        <Link 
+          href="/login"
+          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
+        >
+          Login
+        </Link>
+      </header>
+
       <main className="flex flex-1 w-full max-w-4xl flex-col items-center justify-center px-6 py-16">
         <div className="flex flex-col items-center gap-8 text-center">
           <div className="flex items-center gap-3">

@@ -3,15 +3,18 @@ import { requireAuthenticatedUser, requireSuperAdmin } from '@/lib/auth/authoriz
 import { getExpenseCategories, createExpenseCategory } from '@/lib/finance/service'
 import { createExpenseCategorySchema } from '@/lib/validations/finance'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     await requireAuthenticatedUser()
     
-    const categories = await getExpenseCategories()
+    const searchParams = request.nextUrl.searchParams
+    const includeInactive = searchParams.get('include_inactive') === 'true'
+    
+    const categories = await getExpenseCategories(includeInactive === true)
     
     return NextResponse.json({ 
       success: true,
-      data: categories
+      categories
     })
   } catch (error: unknown) {
     console.error('Get expense categories error:', error)

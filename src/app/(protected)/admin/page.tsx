@@ -1,9 +1,16 @@
 import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Users, Clock, Settings, BarChart3, Package } from 'lucide-react'
+import { Users, Clock, Settings, BarChart3, Package, DollarSign } from 'lucide-react'
 
 export default function AdminPage() {
   const adminModules = [
+    {
+      title: 'Financial Management',
+      description: 'Overview of budgets, expenses, and financial reporting',
+      icon: DollarSign,
+      href: '/admin/finance',
+      color: 'text-emerald-600'
+    },
     {
       title: 'Attendance Management',
       description: 'View and manage employee attendance records',

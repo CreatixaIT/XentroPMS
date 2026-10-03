@@ -117,16 +117,21 @@ export async function upsertProjectBudget(
 /**
  * Get expense categories
  */
-export async function getExpenseCategories(): Promise<ExpenseCategory[]> {
+export async function getExpenseCategories(includeInactive = false): Promise<ExpenseCategory[]> {
   await requireAuthenticatedUser()
   
   const supabase = await createClient()
   
-  const { data, error } = await supabase
+  let query = supabase
     .from('expense_categories')
     .select('*')
-    .eq('status', 'ACTIVE')
     .order('name')
+  
+  if (!includeInactive) {
+    query = query.eq('status', 'ACTIVE')
+  }
+  
+  const { data, error } = await query
   
   if (error) {
     console.error('Error fetching expense categories:', error)
@@ -171,6 +176,68 @@ export async function createExpenseCategory(
   })
   
   return category
+}
+
+/**
+ * Update expense category
+ */
+export async function updateExpenseCategory(
+  categoryId: string,
+  data: {
+    name: string
+    description?: string
+  }
+): Promise<ExpenseCategory> {
+  const user = await requireSuperAdmin()
+  const supabase = await createClient()
+  
+  const { data: category, error } = await supabase
+    .from('expense_categories')
+    .update({
+      name: data.name,
+      description: data.description || null,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', categoryId)
+    .select()
+    .single()
+  
+  if (error) throw error
+  
+  // Audit log
+  await supabase.from('audit_logs').insert({
+    actor_id: user.id,
+    action: 'EXPENSE_CATEGORY_UPDATED',
+    target_type: 'expense_category',
+    target_id: category.id,
+    metadata: { name: data.name }
+  })
+  
+  return category
+}
+
+/**
+ * Delete expense category
+ */
+export async function deleteExpenseCategory(categoryId: string): Promise<void> {
+  const user = await requireSuperAdmin()
+  const supabase = await createClient()
+  
+  const { error } = await supabase
+    .from('expense_categories')
+    .delete()
+    .eq('id', categoryId)
+  
+  if (error) throw error
+  
+  // Audit log
+  await supabase.from('audit_logs').insert({
+    actor_id: user.id,
+    action: 'EXPENSE_CATEGORY_DELETED',
+    target_type: 'expense_category',
+    target_id: categoryId,
+    metadata: {}
+  })
 }
 
 /**
