@@ -18,6 +18,7 @@ export async function POST(request: NextRequest) {
     
     return NextResponse.json({ 
       success: true,
+      message: 'Time out recorded successfully.',
       attendance 
     })
   } catch (error: unknown) {
@@ -30,16 +31,16 @@ export async function POST(request: NextRequest) {
       )
     }
     
-    if (error instanceof Error && error.message.includes('already recorded')) {
+    if (error instanceof Error && error.message.includes('open session')) {
       return NextResponse.json(
-        { success: false, error: error.message },
+        { success: false, error: 'You are not currently timed in. Please record Time In first.' },
         { status: 400 }
       )
     }
     
     if (error instanceof Error && error.message.includes('No attendance record found')) {
       return NextResponse.json(
-        { success: false, error: error.message },
+        { success: false, error: 'No attendance record found. Please record Time In first.' },
         { status: 400 }
       )
     }

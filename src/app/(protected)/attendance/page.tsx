@@ -27,6 +27,8 @@ export default function AttendancePage() {
   const [history, setHistory] = useState<AttendanceRecord[]>([])
   const [currentDhakaTime, setCurrentDhakaTime] = useState('')
   const [isAdmin, setIsAdmin] = useState(false)
+  const [sessionStatus, setSessionStatus] = useState<any>(null)
+  const [sessions, setSessions] = useState<any[]>([])
 
   // Update Bangladesh time every second
   useEffect(() => {
@@ -59,11 +61,28 @@ export default function AttendancePage() {
         })
       }
 
+      // Load session-based status
+      const statusResponse = await fetch('/api/attendance/status')
+      if (statusResponse.ok) {
+        const statusData = await statusResponse.json()
+        setSessionStatus(statusData.status)
+        setSessions(statusData.sessions || [])
+        
+        // Set attendance status based on session data
+        if (statusData.status?.has_open_session) {
+          setStatus('timed_in')
+        } else if (statusData.status?.total_working_time > 0) {
+          setStatus('complete')
+        } else {
+          setStatus('not_recorded')
+        }
+      }
+
+      // Also load attendance record for display
       const response = await fetch('/api/attendance/today')
       if (response.ok) {
         const data = await response.json()
         setAttendance(data.attendance)
-        setStatus(data.status)
       }
     } catch (error) {
       console.error('Error loading attendance:', error)
@@ -291,6 +310,49 @@ export default function AttendancePage() {
     return date.toLocaleTimeString('en-US', options)
   }
 
+  const formatDuration = (duration: any) => {
+    if (!duration) return '0h 0m'
+    
+    // If duration is an interval string like "03:30:00"
+    if (typeof duration === 'string') {
+      const parts = duration.split(':')
+      if (parts.length >= 2) {
+        const hours = parseInt(parts[0], 10)
+        const minutes = parseInt(parts[1], 10)
+        return `${hours}h ${minutes}m`
+      }
+    }
+    
+    // If duration is in seconds
+    if (typeof duration === 'number') {
+      const hours = Math.floor(duration / 3600)
+      const minutes = Math.floor((duration % 3600) / 60)
+      return `${hours}h ${minutes}m`
+    }
+    
+    return '0h 0m'
+  }
+
+  const calculateTotalWorkingTime = () => {
+    if (!sessions || sessions.length === 0) return '0h 0m'
+    
+    let totalSeconds = 0
+    sessions.forEach(s => {
+      if (s.duration) {
+        if (typeof s.duration === 'string') {
+          const parts = s.duration.split(':')
+          if (parts.length >= 2) {
+            totalSeconds += parseInt(parts[0], 10) * 3600 + parseInt(parts[1], 10) * 60
+          }
+        } else if (typeof s.duration === 'number') {
+          totalSeconds += s.duration
+        }
+      }
+    })
+    
+    return formatDuration(totalSeconds)
+  }
+
   const getTodayInfo = () => {
     const now = new Date()
     const dateOptions: Intl.DateTimeFormatOptions = {
@@ -386,7 +448,7 @@ export default function AttendancePage() {
 
           {status === 'not_recorded' && (
             <div className="text-center space-y-4">
-              <div className="text-slate-500">Not Timed In</div>
+              <div className="text-slate-500">Not Working</div>
               <Button
                 onClick={handleTimeIn}
                 disabled={recording}
@@ -398,30 +460,32 @@ export default function AttendancePage() {
             </div>
           )}
 
-          {status === 'timed_in' && attendance && (
+          {status === 'timed_in' && (
             <div className="space-y-4">
               <div className="flex items-center gap-2 text-green-600">
                 <CheckCircle className="h-5 w-5" />
-                <span className="font-medium">Timed In</span>
+                <span className="font-medium">Currently Working</span>
               </div>
               
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Date:</span>
-                  <span>{formatDate(attendance.attendance_date)}</span>
+              {sessionStatus?.latest_time_in && (
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Started:</span>
+                    <span>{formatTime(sessionStatus.latest_time_in)}</span>
+                  </div>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Time In:</span>
-                  <span>{formatTime(attendance.time_in!)}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-500">Location:</span>
-                  <span className={attendance.time_in_location_verified ? 'text-green-600' : 'text-red-600'}>
-                    {attendance.time_in_location_verified ? 'Verified' : 'Not Verified'}
-                  </span>
-                </div>
-              </div>
+              )}
 
+              <Button
+                onClick={handleTimeIn}
+                disabled={true}
+                size="lg"
+                className="w-full"
+                variant="outline"
+              >
+                Time In
+              </Button>
+              
               <Button
                 onClick={handleTimeOut}
                 disabled={recording}
@@ -433,48 +497,29 @@ export default function AttendancePage() {
             </div>
           )}
 
-          {status === 'complete' && attendance && (
+          {status === 'complete' && (
             <div className="space-y-4">
-              <div className="flex items-center gap-2 text-green-600">
+              <div className="flex items-center gap-2 text-slate-600">
                 <CheckCircle className="h-5 w-5" />
-                <span className="font-medium">Attendance Complete</span>
-              </div>
-              
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Date:</span>
-                  <span>{formatDate(attendance.attendance_date)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Time In:</span>
-                  <span>{formatTime(attendance.time_in!)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Time Out:</span>
-                  <span>{formatTime(attendance.time_out!)}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-500">Location:</span>
-                  <span className={
-                    attendance.time_in_location_verified && attendance.time_out_location_verified
-                      ? 'text-green-600'
-                      : 'text-red-600'
-                  }>
-                    {attendance.time_in_location_verified && attendance.time_out_location_verified
-                      ? 'Verified'
-                      : 'Not Verified'
-                    }
-                  </span>
-                </div>
+                <span className="font-medium">Not Working</span>
               </div>
 
+              <Button
+                onClick={handleTimeIn}
+                disabled={recording}
+                size="lg"
+                className="w-full"
+              >
+                {recording ? 'Recording...' : 'Time In'}
+              </Button>
+              
               <Button
                 disabled={true}
                 size="lg"
                 className="w-full"
                 variant="outline"
               >
-                Attendance Complete
+                Time Out
               </Button>
             </div>
           )}
@@ -486,6 +531,30 @@ export default function AttendancePage() {
                 You are outside the workplace location. Please move to the workplace area to record attendance.
               </AlertDescription>
             </Alert>
+          )}
+
+          {/* Today's sessions */}
+          {sessions && sessions.length > 0 && (
+            <div className="space-y-3 pt-4 border-t">
+              <div className="font-medium text-sm">Today's Sessions</div>
+              {sessions.map((session) => (
+                <div key={session.id} className="flex justify-between text-sm">
+                  <span>
+                    {formatTime(session.time_in)}
+                    {session.time_out ? ` — ${formatTime(session.time_out)}` : ' — Currently Working'}
+                  </span>
+                  {session.duration && (
+                    <span className="text-slate-500">
+                      {formatDuration(session.duration)}
+                    </span>
+                  )}
+                </div>
+              ))}
+              <div className="flex justify-between font-medium pt-2 border-t">
+                <span>Today's Total:</span>
+                <span>{formatDuration(calculateTotalWorkingTime())}</span>
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>

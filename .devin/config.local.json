@@ -20,7 +20,8 @@
       "Exec(cat)",
       "Exec(lsof)",
       "Exec(cp)",
-      "Exec(git log)"
+      "Exec(git log)",
+      "Exec(kill)"
     ]
   }
 }

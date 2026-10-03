@@ -3,7 +3,7 @@ import { requireAuthenticatedUser, requireActiveAccount, requireSuperAdmin } fro
 import type { AttendanceRecord, AttendanceSettings, AttendanceHistoryParams, AttendanceStats, AttendanceStatus } from './types'
 
 /**
- * Get today's attendance for the current user
+ * Get today's attendance for the current user (session-based)
  */
 export async function getTodayAttendance(): Promise<AttendanceRecord | null> {
   const user = await requireAuthenticatedUser()
@@ -36,24 +36,103 @@ export async function getTodayAttendance(): Promise<AttendanceRecord | null> {
 }
 
 /**
- * Get attendance status for the current user
+ * Get current attendance status with session details
+ */
+export async function getCurrentAttendanceStatus() {
+  const user = await requireAuthenticatedUser()
+  await requireActiveAccount()
+
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .rpc('get_current_attendance_status', {
+      p_user_id: user.id
+    })
+
+  if (error) {
+    throw error
+  }
+
+  if (!data || data.length === 0) {
+    return {
+      has_open_session: false,
+      latest_time_in: null,
+      latest_session_id: null,
+      total_working_time: 0
+    }
+  }
+
+  return data[0]
+}
+
+/**
+ * Get today's sessions for the current user
+ */
+export async function getTodaySessions() {
+  const user = await requireAuthenticatedUser()
+  await requireActiveAccount()
+
+  const supabase = await createClient()
+
+  // Get business date
+  const { data: dateResult } = await supabase
+    .rpc('get_business_date')
+  
+  if (!dateResult.data) {
+    throw new Error('Failed to get business date')
+  }
+
+  const businessDate = dateResult.data
+
+  const { data, error } = await supabase
+    .rpc('get_attendance_sessions', {
+      p_user_id: user.id,
+      p_business_date: businessDate
+    })
+
+  if (error) {
+    throw error
+  }
+
+  return data || []
+}
+
+/**
+ * Get attendance status for the current user (session-based)
  */
 export async function getAttendanceStatus(): Promise<AttendanceStatus> {
-  const attendance = await getTodayAttendance()
+  const user = await requireAuthenticatedUser()
+  await requireActiveAccount()
 
-  if (!attendance) {
+  const supabase = await createClient()
+
+  // Use the new session-based function
+  const { data, error } = await supabase
+    .rpc('get_current_attendance_status', {
+      p_user_id: user.id
+    })
+
+  if (error) {
+    console.error('Error getting attendance status:', error)
+    return 'error'
+  }
+
+  if (!data || data.length === 0) {
     return 'not_recorded'
   }
 
-  if (attendance.time_in && !attendance.time_out) {
-    return attendance.time_in_location_verified ? 'timed_in' : 'outside_radius'
+  const status = data[0]
+
+  if (status.has_open_session) {
+    return 'timed_in'
   }
 
-  if (attendance.time_in && attendance.time_out) {
+  // Has sessions but no open session
+  if (status.total_working_time && status.total_working_time > 0) {
     return 'complete'
   }
 
-  return 'error'
+  return 'not_recorded'
 }
 
 /**

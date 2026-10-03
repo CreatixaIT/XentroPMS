@@ -1,7 +1,10 @@
--- Add attendance sessions table to support multiple time-in/time-out per day
--- Migration: 20240930000012_add_attendance_sessions.sql
+-- Add attendance sessions table for multiple time-in/time-out per day
+-- Migration: 20240930000014_add_attendance_sessions.sql
 
--- Create attendance_sessions table
+-- ============================================
+-- STEP 1: Create attendance_sessions table
+-- ============================================
+
 CREATE TABLE IF NOT EXISTS attendance_sessions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     attendance_record_id UUID REFERENCES attendance_records(id) ON DELETE CASCADE,
@@ -38,7 +41,10 @@ CREATE TRIGGER update_attendance_sessions_updated_at
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
 
--- Enable RLS on attendance_sessions
+-- ============================================
+-- STEP 2: Enable RLS on attendance_sessions
+-- ============================================
+
 ALTER TABLE attendance_sessions ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies for attendance_sessions
@@ -58,7 +64,7 @@ CREATE POLICY "SUPER_ADMIN can read all attendance sessions"
     )
   );
 
--- No INSERT/UPDATE/DELETE policies for regular users - attendance sessions managed through functions
+-- No INSERT/UPDATE/DELETE policies for regular users - sessions managed through functions
 
 -- SUPER_ADMIN can manage attendance sessions
 CREATE POLICY "SUPER_ADMIN can manage attendance sessions"
@@ -76,14 +82,17 @@ CREATE POLICY "SUPER_ADMIN can manage attendance sessions"
     )
   );
 
--- Update the attendance_records UNIQUE constraint to allow multiple sessions
--- Drop the old constraint
+-- ============================================
+-- STEP 3: Remove UNIQUE constraint from attendance_records
+-- ============================================
+
+-- Drop the unique constraint to allow multiple sessions per day
 ALTER TABLE attendance_records DROP CONSTRAINT IF EXISTS attendance_records_user_id_attendance_date_key;
 
--- Create a new constraint that doesn't prevent multiple sessions
--- (We'll allow one attendance_record per user per day, but multiple sessions per record)
+-- ============================================
+-- STEP 4: Update create_attendance_time_in function for sessions
+-- ============================================
 
--- Update create_attendance_time_in function to create a session instead of updating the record directly
 CREATE OR REPLACE FUNCTION create_attendance_time_in(
   p_user_id UUID,
   p_latitude NUMERIC,
@@ -173,7 +182,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Update update_attendance_time_out function to close the current session
+-- ============================================
+-- STEP 5: Update update_attendance_time_out function for sessions
+-- ============================================
+
 CREATE OR REPLACE FUNCTION update_attendance_time_out(
   p_user_id UUID,
   p_latitude NUMERIC,
@@ -243,6 +255,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- ============================================
+-- STEP 6: Add helper functions for reporting
+-- ============================================
+
 -- Function to get total working time for a user on a business date
 CREATE OR REPLACE FUNCTION get_total_working_time(p_user_id UUID, p_business_date DATE)
 RETURNS INTERVAL AS $$
@@ -297,5 +313,56 @@ BEGIN
       LIMIT 1
     ) as latest_session_id,
     get_total_working_time(p_user_id, v_business_date) as total_working_time;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to get all sessions for a user on a business date
+CREATE OR REPLACE FUNCTION get_attendance_sessions(p_user_id UUID, p_business_date DATE)
+RETURNS TABLE(
+  id UUID,
+  time_in TIMESTAMPTZ,
+  time_out TIMESTAMPTZ,
+  duration INTERVAL
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT
+    id,
+    time_in,
+    time_out,
+    CASE 
+      WHEN time_out IS NOT NULL THEN time_out - time_in
+      ELSE NULL
+    END as duration
+  FROM attendance_sessions
+  WHERE user_id = p_user_id
+  AND business_date = p_business_date
+  ORDER BY time_in ASC;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function to get user attendance for a date range (for reporting)
+CREATE OR REPLACE FUNCTION get_user_attendance_report(
+  p_user_id UUID,
+  p_start_date DATE,
+  p_end_date DATE
+)
+RETURNS TABLE(
+  business_date DATE,
+  total_working_time INTERVAL,
+  session_count BIGINT
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT
+    business_date,
+    COALESCE(SUM(time_out - time_in), INTERVAL '0') as total_working_time,
+    COUNT(*) as session_count
+  FROM attendance_sessions
+  WHERE user_id = p_user_id
+  AND business_date BETWEEN p_start_date AND p_end_date
+  AND time_out IS NOT NULL
+  GROUP BY business_date
+  ORDER BY business_date DESC;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

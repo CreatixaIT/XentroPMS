@@ -18,6 +18,7 @@ export async function POST(request: NextRequest) {
     
     return NextResponse.json({ 
       success: true,
+      message: 'Time in recorded successfully.',
       attendance 
     })
   } catch (error: unknown) {
@@ -30,9 +31,9 @@ export async function POST(request: NextRequest) {
       )
     }
     
-    if (error instanceof Error && error.message.includes('already recorded')) {
+    if (error instanceof Error && error.message.includes('open session')) {
       return NextResponse.json(
-        { success: false, error: error.message },
+        { success: false, error: 'You are already timed in. Please record Time Out first.' },
         { status: 400 }
       )
     }
