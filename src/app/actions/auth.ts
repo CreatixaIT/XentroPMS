@@ -52,7 +52,6 @@ export async function register(formData: FormData) {
       email: data.email,
       password: data.password,
       options: {
-        emailConfirm: true,
         data: {
           full_name: data.full_name,
           designation: data.designation,

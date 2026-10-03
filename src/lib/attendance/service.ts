@@ -44,6 +44,7 @@ export async function getCurrentAttendanceStatus() {
 
   const supabase = await createClient()
 
+  // Server will use auth.uid() automatically
   const { data, error } = await supabase
     .rpc('get_current_attendance_status', {
       p_user_id: user.id
@@ -84,6 +85,7 @@ export async function getTodaySessions() {
 
   const businessDate = dateResult.data
 
+  // Server will use auth.uid() for authorization
   const { data, error } = await supabase
     .rpc('get_attendance_sessions', {
       p_user_id: user.id,

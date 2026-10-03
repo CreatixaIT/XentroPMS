@@ -21,7 +21,8 @@
       "Exec(lsof)",
       "Exec(cp)",
       "Exec(git log)",
-      "Exec(kill)"
+      "Exec(kill)",
+      "Exec(sed)"
     ]
   }
 }

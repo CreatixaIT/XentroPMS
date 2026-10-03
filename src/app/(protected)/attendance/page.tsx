@@ -11,7 +11,6 @@ import type { AttendanceRecord, AttendanceStatus } from '@/lib/attendance/types'
 export default function AttendancePage() {
   const router = useRouter()
   const [user, setUser] = useState<{ full_name: string; designation: string } | null>(null)
-  const [attendance, setAttendance] = useState<AttendanceRecord | null>(null)
   const [status, setStatus] = useState<AttendanceStatus>('not_recorded')
   const [loading, setLoading] = useState(true)
   const [recording, setRecording] = useState(false)
@@ -27,8 +26,18 @@ export default function AttendancePage() {
   const [history, setHistory] = useState<AttendanceRecord[]>([])
   const [currentDhakaTime, setCurrentDhakaTime] = useState('')
   const [isAdmin, setIsAdmin] = useState(false)
-  const [sessionStatus, setSessionStatus] = useState<any>(null)
-  const [sessions, setSessions] = useState<any[]>([])
+  const [sessionStatus, setSessionStatus] = useState<{
+    has_open_session: boolean
+    latest_time_in: string | null
+    latest_session_id: string | null
+    total_working_time: string | null
+  } | null>(null)
+  const [sessions, setSessions] = useState<{
+    id: string
+    time_in: string
+    time_out: string | null
+    duration: string | null
+  }[]>([])
 
   // Update Bangladesh time every second
   useEffect(() => {
@@ -78,11 +87,11 @@ export default function AttendancePage() {
         }
       }
 
-      // Also load attendance record for display
+      // Also load attendance record for display (optional, not used in current UI)
       const response = await fetch('/api/attendance/today')
       if (response.ok) {
         const data = await response.json()
-        setAttendance(data.attendance)
+        // Attendance record loaded but not displayed in current session-based UI
       }
     } catch (error) {
       console.error('Error loading attendance:', error)
@@ -310,7 +319,7 @@ export default function AttendancePage() {
     return date.toLocaleTimeString('en-US', options)
   }
 
-  const formatDuration = (duration: any) => {
+  const formatDuration = (duration: string | number | null) => {
     if (!duration) return '0h 0m'
     
     // If duration is an interval string like "03:30:00"
@@ -536,7 +545,7 @@ export default function AttendancePage() {
           {/* Today's sessions */}
           {sessions && sessions.length > 0 && (
             <div className="space-y-3 pt-4 border-t">
-              <div className="font-medium text-sm">Today's Sessions</div>
+              <div className="font-medium text-sm">Today&apos;s Sessions</div>
               {sessions.map((session) => (
                 <div key={session.id} className="flex justify-between text-sm">
                   <span>
@@ -551,7 +560,7 @@ export default function AttendancePage() {
                 </div>
               ))}
               <div className="flex justify-between font-medium pt-2 border-t">
-                <span>Today's Total:</span>
+                <span>Today&apos;s Total:</span>
                 <span>{formatDuration(calculateTotalWorkingTime())}</span>
               </div>
             </div>

@@ -42,7 +42,16 @@ CREATE TRIGGER update_attendance_sessions_updated_at
   EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================
--- STEP 2: Enable RLS on attendance_sessions
+-- STEP 2: Partial unique index to prevent multiple open sessions
+-- ============================================
+
+-- Ensure a user can have only ONE open session at a time
+CREATE UNIQUE INDEX idx_attendance_sessions_single_open_session
+  ON attendance_sessions(user_id)
+  WHERE time_out IS NULL;
+
+-- ============================================
+-- STEP 3: Enable RLS on attendance_sessions
 -- ============================================
 
 ALTER TABLE attendance_sessions ENABLE ROW LEVEL SECURITY;
@@ -59,7 +68,7 @@ CREATE POLICY "SUPER_ADMIN can read all attendance sessions"
   ON attendance_sessions FOR SELECT
   USING (
     EXISTS (
-      SELECT 1 FROM profiles 
+      SELECT 1 FROM public.profiles 
       WHERE id = auth.uid() AND role = 'SUPER_ADMIN'
     )
   );
@@ -71,23 +80,16 @@ CREATE POLICY "SUPER_ADMIN can manage attendance sessions"
   ON attendance_sessions FOR ALL
   USING (
     EXISTS (
-      SELECT 1 FROM profiles 
+      SELECT 1 FROM public.profiles 
       WHERE id = auth.uid() AND role = 'SUPER_ADMIN'
     )
   )
   WITH CHECK (
     EXISTS (
-      SELECT 1 FROM profiles 
+      SELECT 1 FROM public.profiles 
       WHERE id = auth.uid() AND role = 'SUPER_ADMIN'
     )
   );
-
--- ============================================
--- STEP 3: Remove UNIQUE constraint from attendance_records
--- ============================================
-
--- Drop the unique constraint to allow multiple sessions per day
-ALTER TABLE attendance_records DROP CONSTRAINT IF EXISTS attendance_records_user_id_attendance_date_key;
 
 -- ============================================
 -- STEP 4: Update create_attendance_time_in function for sessions
@@ -99,7 +101,11 @@ CREATE OR REPLACE FUNCTION create_attendance_time_in(
   p_longitude NUMERIC,
   p_accuracy NUMERIC
 )
-RETURNS UUID AS $$
+RETURNS UUID
+SET search_path = ''
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
 DECLARE
   v_record_id UUID;
   v_session_id UUID;
@@ -108,21 +114,16 @@ DECLARE
   v_distance NUMERIC;
   v_location_verified BOOLEAN;
 BEGIN
+  -- Authorization: p_user_id must match authenticated user
+  IF p_user_id != auth.uid() THEN
+    RAISE EXCEPTION 'Unauthorized: Cannot record attendance for another user';
+  END IF;
+  
   -- Get business date in Asia/Dhaka
   v_business_date := get_business_date();
   
-  -- Check if there's an open session (user already timed in)
-  IF EXISTS (
-    SELECT 1 FROM attendance_sessions
-    WHERE user_id = p_user_id
-    AND business_date = v_business_date
-    AND time_out IS NULL
-  ) THEN
-    RAISE EXCEPTION 'You already have an open session. Please record Time Out first.';
-  END IF;
-  
-  -- Get or create attendance record for today
-  INSERT INTO attendance_records (user_id, attendance_date)
+  -- Get or create attendance record for today (UNIQUE constraint preserved)
+  INSERT INTO public.attendance_records (user_id, attendance_date)
   VALUES (p_user_id, v_business_date)
   ON CONFLICT (user_id, attendance_date) DO NOTHING
   RETURNING id INTO v_record_id;
@@ -130,13 +131,13 @@ BEGIN
   -- If the record already existed, get its ID
   IF v_record_id IS NULL THEN
     SELECT id INTO v_record_id
-    FROM attendance_records
+    FROM public.attendance_records
     WHERE user_id = p_user_id AND attendance_date = v_business_date;
   END IF;
   
   -- Get active workplace setting
   SELECT * INTO v_setting
-  FROM attendance_settings
+  FROM public.attendance_settings
   WHERE is_active = true
   LIMIT 1;
   
@@ -148,8 +149,8 @@ BEGIN
   v_distance := calculate_distance(p_latitude, p_longitude, v_setting.latitude, v_setting.longitude);
   v_location_verified := v_distance <= v_setting.allowed_radius_meters;
   
-  -- Create attendance session
-  INSERT INTO attendance_sessions (
+  -- Create attendance session (partial unique index prevents duplicate open sessions)
+  INSERT INTO public.attendance_sessions (
     attendance_record_id,
     user_id,
     business_date,
@@ -170,17 +171,21 @@ BEGIN
   )
   RETURNING id INTO v_session_id;
   
-  -- Update attendance_record time_in if this is the first session
-  UPDATE attendance_records
+  -- Update attendance_record time_in to earliest session time
+  UPDATE public.attendance_records
   SET time_in = (
-    SELECT MIN(time_in) FROM attendance_sessions
+    SELECT MIN(time_in) FROM public.attendance_sessions
     WHERE attendance_record_id = v_record_id
   )
   WHERE id = v_record_id;
   
   RETURN v_session_id;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
+
+-- Grant execute permission
+GRANT EXECUTE ON FUNCTION create_attendance_time_in TO authenticated;
+REVOKE EXECUTE ON FUNCTION create_attendance_time_in FROM PUBLIC;
 
 -- ============================================
 -- STEP 5: Update update_attendance_time_out function for sessions
@@ -192,7 +197,11 @@ CREATE OR REPLACE FUNCTION update_attendance_time_out(
   p_longitude NUMERIC,
   p_accuracy NUMERIC
 )
-RETURNS UUID AS $$
+RETURNS UUID
+SET search_path = ''
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
 DECLARE
   v_session_id UUID;
   v_business_date DATE;
@@ -200,12 +209,17 @@ DECLARE
   v_distance NUMERIC;
   v_location_verified BOOLEAN;
 BEGIN
+  -- Authorization: p_user_id must match authenticated user
+  IF p_user_id != auth.uid() THEN
+    RAISE EXCEPTION 'Unauthorized: Cannot record attendance for another user';
+  END IF;
+  
   -- Get business date in Asia/Dhaka
   v_business_date := get_business_date();
   
   -- Find the current open session
   SELECT id INTO v_session_id
-  FROM attendance_sessions
+  FROM public.attendance_sessions
   WHERE user_id = p_user_id
   AND business_date = v_business_date
   AND time_out IS NULL
@@ -218,7 +232,7 @@ BEGIN
   
   -- Get active workplace setting
   SELECT * INTO v_setting
-  FROM attendance_settings
+  FROM public.attendance_settings
   WHERE is_active = true
   LIMIT 1;
   
@@ -231,7 +245,7 @@ BEGIN
   v_location_verified := v_distance <= v_setting.allowed_radius_meters;
   
   -- Update the session
-  UPDATE attendance_sessions
+  UPDATE public.attendance_sessions
   SET
     time_out = NOW(),
     time_out_latitude = p_latitude,
@@ -241,32 +255,48 @@ BEGIN
   WHERE id = v_session_id
   RETURNING id INTO v_session_id;
   
-  -- Update attendance_record time_out if this is the last session
-  UPDATE attendance_records
+  -- Update attendance_record time_out to latest completed session time
+  UPDATE public.attendance_records
   SET time_out = (
-    SELECT MAX(time_out) FROM attendance_sessions
+    SELECT MAX(time_out) FROM public.attendance_sessions
     WHERE attendance_record_id = (
-      SELECT attendance_record_id FROM attendance_sessions WHERE id = v_session_id
+      SELECT attendance_record_id FROM public.attendance_sessions WHERE id = v_session_id
     )
+    AND time_out IS NOT NULL
   )
-  WHERE id = (SELECT attendance_record_id FROM attendance_sessions WHERE id = v_session_id);
+  WHERE id = (SELECT attendance_record_id FROM public.attendance_sessions WHERE id = v_session_id);
   
   RETURN v_session_id;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
+
+-- Grant execute permission
+GRANT EXECUTE ON FUNCTION update_attendance_time_out TO authenticated;
+REVOKE EXECUTE ON FUNCTION update_attendance_time_out FROM PUBLIC;
 
 -- ============================================
--- STEP 6: Add helper functions for reporting
+-- STEP 6: Add helper functions for reporting with authorization
 -- ============================================
 
 -- Function to get total working time for a user on a business date
 CREATE OR REPLACE FUNCTION get_total_working_time(p_user_id UUID, p_business_date DATE)
-RETURNS INTERVAL AS $$
+RETURNS INTERVAL
+SET search_path = ''
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
 BEGIN
+  -- Authorization: p_user_id must match authenticated user or SUPER_ADMIN
+  IF p_user_id != auth.uid() AND NOT EXISTS (
+    SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'SUPER_ADMIN'
+  ) THEN
+    RAISE EXCEPTION 'Unauthorized: Cannot access another user''s attendance';
+  END IF;
+  
   RETURN COALESCE(
     (
       SELECT SUM(time_out - time_in)
-      FROM attendance_sessions
+      FROM public.attendance_sessions
       WHERE user_id = p_user_id
       AND business_date = p_business_date
       AND time_out IS NOT NULL
@@ -274,7 +304,11 @@ BEGIN
     INTERVAL '0'
   );
 END;
-$$ LANGUAGE plpgsql STABLE;
+$$;
+
+-- Grant execute permission
+GRANT EXECUTE ON FUNCTION get_total_working_time TO authenticated;
+REVOKE EXECUTE ON FUNCTION get_total_working_time FROM PUBLIC;
 
 -- Function to get current attendance status for a user
 CREATE OR REPLACE FUNCTION get_current_attendance_status(p_user_id UUID)
@@ -283,29 +317,40 @@ RETURNS TABLE(
   latest_time_in TIMESTAMPTZ,
   latest_session_id UUID,
   total_working_time INTERVAL
-) AS $$
+)
+SET search_path = ''
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
 DECLARE
   v_business_date DATE;
 BEGIN
+  -- Authorization: p_user_id must match authenticated user or SUPER_ADMIN
+  IF p_user_id != auth.uid() AND NOT EXISTS (
+    SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'SUPER_ADMIN'
+  ) THEN
+    RAISE EXCEPTION 'Unauthorized: Cannot access another user''s attendance';
+  END IF;
+  
   v_business_date := get_business_date();
   
   RETURN QUERY
   SELECT
     EXISTS (
-      SELECT 1 FROM attendance_sessions
+      SELECT 1 FROM public.attendance_sessions
       WHERE user_id = p_user_id
       AND business_date = v_business_date
       AND time_out IS NULL
     ) as has_open_session,
     (
-      SELECT time_in FROM attendance_sessions
+      SELECT time_in FROM public.attendance_sessions
       WHERE user_id = p_user_id
       AND business_date = v_business_date
       ORDER BY time_in DESC
       LIMIT 1
     ) as latest_time_in,
     (
-      SELECT id FROM attendance_sessions
+      SELECT id FROM public.attendance_sessions
       WHERE user_id = p_user_id
       AND business_date = v_business_date
       AND time_out IS NULL
@@ -314,7 +359,11 @@ BEGIN
     ) as latest_session_id,
     get_total_working_time(p_user_id, v_business_date) as total_working_time;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
+
+-- Grant execute permission
+GRANT EXECUTE ON FUNCTION get_current_attendance_status TO authenticated;
+REVOKE EXECUTE ON FUNCTION get_current_attendance_status FROM PUBLIC;
 
 -- Function to get all sessions for a user on a business date
 CREATE OR REPLACE FUNCTION get_attendance_sessions(p_user_id UUID, p_business_date DATE)
@@ -323,8 +372,19 @@ RETURNS TABLE(
   time_in TIMESTAMPTZ,
   time_out TIMESTAMPTZ,
   duration INTERVAL
-) AS $$
+)
+SET search_path = ''
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
 BEGIN
+  -- Authorization: p_user_id must match authenticated user or SUPER_ADMIN
+  IF p_user_id != auth.uid() AND NOT EXISTS (
+    SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'SUPER_ADMIN'
+  ) THEN
+    RAISE EXCEPTION 'Unauthorized: Cannot access another user''s attendance';
+  END IF;
+  
   RETURN QUERY
   SELECT
     id,
@@ -334,12 +394,16 @@ BEGIN
       WHEN time_out IS NOT NULL THEN time_out - time_in
       ELSE NULL
     END as duration
-  FROM attendance_sessions
+  FROM public.attendance_sessions
   WHERE user_id = p_user_id
   AND business_date = p_business_date
   ORDER BY time_in ASC;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
+
+-- Grant execute permission
+GRANT EXECUTE ON FUNCTION get_attendance_sessions TO authenticated;
+REVOKE EXECUTE ON FUNCTION get_attendance_sessions FROM PUBLIC;
 
 -- Function to get user attendance for a date range (for reporting)
 CREATE OR REPLACE FUNCTION get_user_attendance_report(
@@ -351,18 +415,33 @@ RETURNS TABLE(
   business_date DATE,
   total_working_time INTERVAL,
   session_count BIGINT
-) AS $$
+)
+SET search_path = ''
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
 BEGIN
+  -- Authorization: p_user_id must match authenticated user or SUPER_ADMIN
+  IF p_user_id != auth.uid() AND NOT EXISTS (
+    SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'SUPER_ADMIN'
+  ) THEN
+    RAISE EXCEPTION 'Unauthorized: Cannot access another user''s attendance';
+  END IF;
+  
   RETURN QUERY
   SELECT
     business_date,
     COALESCE(SUM(time_out - time_in), INTERVAL '0') as total_working_time,
     COUNT(*) as session_count
-  FROM attendance_sessions
+  FROM public.attendance_sessions
   WHERE user_id = p_user_id
   AND business_date BETWEEN p_start_date AND p_end_date
   AND time_out IS NOT NULL
   GROUP BY business_date
   ORDER BY business_date DESC;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
+
+-- Grant execute permission
+GRANT EXECUTE ON FUNCTION get_user_attendance_report TO authenticated;
+REVOKE EXECUTE ON FUNCTION get_user_attendance_report FROM PUBLIC;
