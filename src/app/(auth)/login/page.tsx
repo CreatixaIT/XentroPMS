@@ -67,9 +67,7 @@ export default function LoginPage() {
             </button>
           </div>
           <div className="flex items-center justify-center gap-3 mb-4">
-            <div className="h-12 w-12 rounded-lg bg-blue-600 flex items-center justify-center">
-              <span className="text-white font-bold text-xl">X</span>
-            </div>
+            <img src="/images/xentro_logo.png" alt="Xentro PMS Logo" className="h-12 w-12 rounded-lg object-contain" />
             <CardTitle className="text-3xl font-bold">Xentro PMS</CardTitle>
           </div>
           <CardDescription className="text-center">

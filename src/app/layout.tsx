@@ -15,6 +15,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Xentro PMS - Project Management Software",
   description: "Internal company project management software for employees, team leaders and administrators",
+  icons: {
+    icon: "/images/xentro_logo.png",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

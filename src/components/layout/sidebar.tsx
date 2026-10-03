@@ -80,9 +80,7 @@ export function Sidebar({ user }: SidebarProps) {
         <div className="flex flex-col h-full">
           {/* Logo */}
           <div className="flex items-center gap-3 px-6 py-6 border-b border-slate-200 dark:border-slate-800">
-            <div className="h-10 w-10 rounded-lg bg-blue-600 flex items-center justify-center">
-              <span className="text-white font-bold text-lg">X</span>
-            </div>
+            <img src="/images/xentro_logo.png" alt="Xentro PMS Logo" className="h-10 w-10 rounded-lg object-contain" />
             <div>
               <h1 className="font-bold text-lg text-slate-900 dark:text-slate-50">Xentro PMS</h1>
               <p className="text-xs text-slate-500 dark:text-slate-400">Project Management</p>

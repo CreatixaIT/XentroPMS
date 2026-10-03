@@ -8,9 +8,7 @@ export default function Home() {
       {/* Header */}
       <header className="w-full px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="h-8 w-8 rounded-lg bg-blue-600 flex items-center justify-center">
-            <span className="text-white font-bold text-sm">X</span>
-          </div>
+          <img src="/images/xentro_logo.png" alt="Xentro PMS Logo" className="h-8 w-8 rounded-lg object-contain" />
           <span className="font-bold text-slate-900 dark:text-slate-50">Xentro PMS</span>
         </div>
         <Link
@@ -24,9 +22,7 @@ export default function Home() {
       <main className="flex flex-1 w-full max-w-4xl flex-col items-center justify-center px-6 py-16">
         <div className="flex flex-col items-center gap-8 text-center">
           <div className="flex items-center gap-3">
-            <div className="h-12 w-12 rounded-lg bg-blue-600 flex items-center justify-center">
-              <span className="text-white font-bold text-xl">X</span>
-            </div>
+            <img src="/images/xentro_logo.png" alt="Xentro PMS Logo" className="h-12 w-12 rounded-lg object-contain" />
             <h1 className="text-4xl font-bold text-slate-900 dark:text-slate-50">
               Xentro PMS
             </h1>
