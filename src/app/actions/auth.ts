@@ -52,6 +52,7 @@ export async function register(formData: FormData) {
       email: data.email,
       password: data.password,
       options: {
+        emailConfirm: true,
         data: {
           full_name: data.full_name,
           designation: data.designation,
@@ -59,7 +60,6 @@ export async function register(formData: FormData) {
           nid: data.nid,
           address: data.address,
         },
-        emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/verify-email`,
       },
     })
     
@@ -138,31 +138,36 @@ export async function login(formData: FormData) {
     }
     
     // Check user status
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('status')
       .eq('id', data.user.id)
       .single()
     
-    if (profile) {
-      if (profile.status === 'PENDING_VERIFICATION') {
-        await supabase.auth.signOut()
-        return {
-          error: 'Please verify your email before signing in',
-          redirect: '/verify-email',
-        }
-      } else if (profile.status === 'DISABLED') {
-        await supabase.auth.signOut()
-        return {
-          error: 'Your account is currently inactive. Please contact an administrator.',
-          redirect: '/account-disabled',
-        }
-      } else if (profile.status === 'BLOCKED') {
-        await supabase.auth.signOut()
-        return {
-          error: 'Your account has been blocked. Please contact an administrator.',
-          redirect: '/account-blocked',
-        }
+    if (profileError || !profile) {
+      await supabase.auth.signOut()
+      return {
+        error: 'Your account profile could not be loaded. Please contact an administrator.',
+      }
+    }
+    
+    if (profile.status === 'PENDING_VERIFICATION') {
+      await supabase.auth.signOut()
+      return {
+        error: 'Please verify your email before signing in',
+        redirect: '/verify-email',
+      }
+    } else if (profile.status === 'DISABLED') {
+      await supabase.auth.signOut()
+      return {
+        error: 'Your account is currently inactive. Please contact an administrator.',
+        redirect: '/account-disabled',
+      }
+    } else if (profile.status === 'BLOCKED') {
+      await supabase.auth.signOut()
+      return {
+        error: 'Your account has been blocked. Please contact an administrator.',
+        redirect: '/account-blocked',
       }
     }
     
