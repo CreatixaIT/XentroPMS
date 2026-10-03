@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
@@ -88,6 +89,53 @@ interface Activity {
   } | null
 }
 
+interface FinancialSummary {
+  planned_budget: number
+  actual_spending: number
+  remaining_budget: number
+  currency: string
+  expenses_by_category: {
+    category_name: string
+    total_amount: number
+  }[]
+}
+
+interface ProjectBudget {
+  id: string
+  project_id: string
+  budget_amount: number
+  currency: string
+  status: string
+  notes: string | null
+}
+
+interface ProjectExpense {
+  id: string
+  project_id: string
+  category_id: string | null
+  expense_date: string
+  description: string
+  amount: number
+  currency: string
+  status: 'SUBMITTED' | 'APPROVED' | 'VOIDED'
+  submitted_by: string
+  expense_categories?: {
+    id: string
+    name: string
+  }
+  submitted_by_profile?: {
+    id: string
+    full_name: string
+    email: string
+  }
+}
+
+interface ExpenseCategory {
+  id: string
+  name: string
+  description: string | null
+}
+
 interface User {
   id: string
   full_name: string
@@ -120,6 +168,27 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   })
   const [submittingUpdate, setSubmittingUpdate] = useState(false)
   const [workUpdates, setWorkUpdates] = useState<Activity[]>([])
+  const [showBudgetDialog, setShowBudgetDialog] = useState(false)
+  const [showExpenseDialog, setShowExpenseDialog] = useState(false)
+  const [financialSummary, setFinancialSummary] = useState<FinancialSummary | null>(null)
+  const [budget, setBudget] = useState<ProjectBudget | null>(null)
+  const [expenses, setExpenses] = useState<ProjectExpense[]>([])
+  const [expenseCategories, setExpenseCategories] = useState<ExpenseCategory[]>([])
+  const [budgetFormData, setBudgetFormData] = useState({
+    budget_amount: '',
+    currency: 'BDT',
+    notes: ''
+  })
+  const [expenseFormData, setExpenseFormData] = useState({
+    category_id: '',
+    expense_date: new Date().toISOString().split('T')[0],
+    description: '',
+    amount: '',
+    currency: 'BDT',
+    notes: ''
+  })
+  const [savingBudget, setSavingBudget] = useState(false)
+  const [addingExpense, setAddingExpense] = useState(false)
 
   useEffect(() => {
     const init = async () => {
@@ -190,11 +259,48 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     }
   }, [projectId])
 
+  const loadFinancialData = useCallback(async () => {
+    if (!projectId) return
+
+    try {
+      // Load financial summary
+      const summaryResponse = await fetch(`/api/projects/${projectId}/financial-summary`)
+      if (summaryResponse.ok) {
+        const summaryData = await summaryResponse.json()
+        setFinancialSummary(summaryData.data)
+      }
+
+      // Load budget
+      const budgetResponse = await fetch(`/api/projects/${projectId}/budget`)
+      if (budgetResponse.ok) {
+        const budgetData = await budgetResponse.json()
+        setBudget(budgetData.data)
+      }
+
+      // Load expenses
+      const expensesResponse = await fetch(`/api/projects/${projectId}/expenses`)
+      if (expensesResponse.ok) {
+        const expensesData = await expensesResponse.json()
+        setExpenses(expensesData.data || [])
+      }
+
+      // Load expense categories
+      const categoriesResponse = await fetch('/api/finance/categories')
+      if (categoriesResponse.ok) {
+        const categoriesData = await categoriesResponse.json()
+        setExpenseCategories(categoriesData.data || [])
+      }
+    } catch (error) {
+      console.error('Error loading financial data:', error)
+    }
+  }, [projectId])
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     loadProject()
     loadWorkUpdates()
-  }, [loadProject, loadWorkUpdates])
+    loadFinancialData()
+  }, [loadProject, loadWorkUpdates, loadFinancialData])
 
   const handleStatusChange = async (newStatus: ProjectStatus) => {
     setUpdatingStatus(true)
@@ -294,6 +400,106 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       alert('Failed to submit work update')
     } finally {
       setSubmittingUpdate(false)
+    }
+  }
+
+  const handleSaveBudget = async () => {
+    if (!budgetFormData.budget_amount || parseFloat(budgetFormData.budget_amount) < 0) {
+      alert('Please enter a valid budget amount')
+      return
+    }
+
+    setSavingBudget(true)
+    try {
+      const response = await fetch(`/api/projects/${projectId}/budget`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          budget_amount: parseFloat(budgetFormData.budget_amount),
+          currency: budgetFormData.currency,
+          notes: budgetFormData.notes
+        })
+      })
+
+      if (response.ok) {
+        loadFinancialData()
+        setShowBudgetDialog(false)
+        setBudgetFormData({
+          budget_amount: '',
+          currency: 'BDT',
+          notes: ''
+        })
+      } else {
+        const error = await response.json()
+        alert(error.error || 'Failed to save budget')
+      }
+    } catch (error) {
+      console.error('Error saving budget:', error)
+      alert('Failed to save budget')
+    } finally {
+      setSavingBudget(false)
+    }
+  }
+
+  const handleAddExpense = async () => {
+    if (!expenseFormData.description || !expenseFormData.amount || parseFloat(expenseFormData.amount) < 0) {
+      alert('Please fill in all required fields')
+      return
+    }
+
+    setAddingExpense(true)
+    try {
+      const response = await fetch(`/api/projects/${projectId}/expenses`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...expenseFormData,
+          amount: parseFloat(expenseFormData.amount)
+        })
+      })
+
+      if (response.ok) {
+        loadFinancialData()
+        setShowExpenseDialog(false)
+        setExpenseFormData({
+          category_id: '',
+          expense_date: new Date().toISOString().split('T')[0],
+          description: '',
+          amount: '',
+          currency: 'BDT',
+          notes: ''
+        })
+      } else {
+        const error = await response.json()
+        alert(error.error || 'Failed to add expense')
+      }
+    } catch (error) {
+      console.error('Error adding expense:', error)
+      alert('Failed to add expense')
+    } finally {
+      setAddingExpense(false)
+    }
+  }
+
+  const handleExpenseAction = async (expenseId: string, action: 'approve' | 'void') => {
+    if (!confirm(`Are you sure you want to ${action} this expense?`)) return
+
+    try {
+      const response = await fetch(`/api/finance/expenses/${expenseId}/action`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action })
+      })
+
+      if (response.ok) {
+        loadFinancialData()
+      } else {
+        const error = await response.json()
+        alert(error.error || `Failed to ${action} expense`)
+      }
+    } catch (error) {
+      console.error(`Error ${action} expense:`, error)
+      alert(`Failed to ${action} expense`)
     }
   }
 
@@ -442,6 +648,57 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           </CardContent>
         </Card>
       </div>
+
+      {/* Financial Summary */}
+      {financialSummary && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Project Financials</CardTitle>
+            {isAdmin && (
+              <Button variant="outline" size="sm" onClick={() => setShowBudgetDialog(true)}>
+                {budget ? 'Edit Budget' : 'Set Budget'}
+              </Button>
+            )}
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-3">
+                <div>
+                  <div className="text-sm font-medium text-muted-foreground">Planned Budget</div>
+                  <div className="text-2xl font-bold">
+                    {financialSummary.currency === 'BDT' ? '৳' : ''}{financialSummary.planned_budget.toLocaleString()}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-sm font-medium text-muted-foreground">Actual Spending</div>
+                  <div className="text-2xl font-bold text-orange-600">
+                    {financialSummary.currency === 'BDT' ? '৳' : ''}{financialSummary.actual_spending.toLocaleString()}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-sm font-medium text-muted-foreground">Remaining Budget</div>
+                  <div className={`text-2xl font-bold ${financialSummary.remaining_budget < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    {financialSummary.currency === 'BDT' ? '৳' : ''}{financialSummary.remaining_budget.toLocaleString()}
+                  </div>
+                </div>
+              </div>
+              {financialSummary.expenses_by_category.length > 0 && (
+                <div>
+                  <div className="text-sm font-medium text-muted-foreground mb-2">Spending by Category</div>
+                  <div className="space-y-1">
+                    {financialSummary.expenses_by_category.map((cat, idx) => (
+                      <div key={idx} className="flex justify-between text-sm">
+                        <span>{cat.category_name}</span>
+                        <span>{financialSummary.currency === 'BDT' ? '৳' : ''}{cat.total_amount.toLocaleString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Project Details */}
       <div className="grid gap-6 md:grid-cols-2">
@@ -592,6 +849,166 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
         </div>
       )}
 
+      {/* Budget Dialog */}
+      {showBudgetDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle>{budget ? 'Edit Budget' : 'Set Budget'}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div>
+                  <Label>Budget Amount</Label>
+                  <Input
+                    type="number"
+                    value={budgetFormData.budget_amount}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBudgetFormData({ ...budgetFormData, budget_amount: e.target.value })}
+                    placeholder="Enter budget amount"
+                    min="0"
+                    step="0.01"
+                  />
+                </div>
+                <div>
+                  <Label>Currency</Label>
+                  <Input
+                    value={budgetFormData.currency}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setBudgetFormData({ ...budgetFormData, currency: e.target.value })}
+                    placeholder="BDT"
+                  />
+                </div>
+                <div>
+                  <Label>Notes</Label>
+                  <textarea
+                    className="w-full px-3 py-2 border rounded-md"
+                    rows={3}
+                    value={budgetFormData.notes}
+                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setBudgetFormData({ ...budgetFormData, notes: e.target.value })}
+                    placeholder="Budget notes (optional)"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button onClick={handleSaveBudget} disabled={savingBudget} className="flex-1">
+                    {savingBudget ? 'Saving...' : 'Save Budget'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setShowBudgetDialog(false)
+                      setBudgetFormData({
+                        budget_amount: '',
+                        currency: 'BDT',
+                        notes: ''
+                      })
+                    }}
+                    className="flex-1"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Expense Dialog */}
+      {showExpenseDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <Card className="w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <CardHeader>
+              <CardTitle>Add Expense</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div>
+                  <Label>Category</Label>
+                  <Select value={expenseFormData.category_id} onValueChange={(value: string | null) => value && setExpenseFormData({ ...expenseFormData, category_id: value })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {expenseCategories.map(cat => (
+                        <SelectItem key={cat.id} value={cat.id}>
+                          {cat.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Date</Label>
+                  <Input
+                    type="date"
+                    value={expenseFormData.expense_date}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setExpenseFormData({ ...expenseFormData, expense_date: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label>Description</Label>
+                  <Textarea
+                    rows={3}
+                    value={expenseFormData.description}
+                    onChange={(e) => setExpenseFormData({ ...expenseFormData, description: e.target.value })}
+                    placeholder="Expense description"
+                  />
+                </div>
+                <div>
+                  <Label>Amount</Label>
+                  <Input
+                    type="number"
+                    value={expenseFormData.amount}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setExpenseFormData({ ...expenseFormData, amount: e.target.value })}
+                    placeholder="Enter amount"
+                    min="0"
+                    step="0.01"
+                  />
+                </div>
+                <div>
+                  <Label>Currency</Label>
+                  <Input
+                    value={expenseFormData.currency}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setExpenseFormData({ ...expenseFormData, currency: e.target.value })}
+                    placeholder="BDT"
+                  />
+                </div>
+                <div>
+                  <Label>Notes</Label>
+                  <Textarea
+                    rows={2}
+                    value={expenseFormData.notes}
+                    onChange={(e) => setExpenseFormData({ ...expenseFormData, notes: e.target.value })}
+                    placeholder="Additional notes (optional)"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button onClick={handleAddExpense} disabled={addingExpense} className="flex-1">
+                    {addingExpense ? 'Adding...' : 'Add Expense'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setShowExpenseDialog(false)
+                      setExpenseFormData({
+                        category_id: '',
+                        expense_date: new Date().toISOString().split('T')[0],
+                        description: '',
+                        amount: '',
+                        currency: 'BDT',
+                        notes: ''
+                      })
+                    }}
+                    className="flex-1"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       {/* Work Update Dialog */}
       {showWorkUpdateDialog && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -723,11 +1140,73 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                           <span className="font-medium">Blockers:</span> {update.metadata.blockers}
                         </div>
                       )}
-                      {update.metadata.progress > 0 && (
+                      {update.metadata && update.metadata.progress && update.metadata.progress > 0 && (
                         <div>
                           <span className="font-medium">Progress:</span> {update.metadata.progress}%
                         </div>
                       )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Expenses */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Expenses ({expenses.length})</CardTitle>
+          <Button variant="outline" size="sm" onClick={() => setShowExpenseDialog(true)}>
+            + Add Expense
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {expenses.length === 0 ? (
+            <div className="text-center text-muted-foreground py-8">
+              No expenses recorded for this project yet
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {expenses.map((expense) => (
+                <div key={expense.id} className="border-b pb-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="font-medium">{expense.description}</div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-muted-foreground">{expense.expense_date}</span>
+                      {expense.status === 'APPROVED' && (
+                        <Badge className="bg-green-100 text-green-800">Approved</Badge>
+                      )}
+                      {expense.status === 'SUBMITTED' && (
+                        <Badge className="bg-yellow-100 text-yellow-800">Submitted</Badge>
+                      )}
+                      {expense.status === 'VOIDED' && (
+                        <Badge className="bg-red-100 text-red-800">Voided</Badge>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="space-x-4">
+                      {expense.expense_categories && (
+                        <span className="text-muted-foreground">Category: {expense.expense_categories.name}</span>
+                      )}
+                      {expense.submitted_by_profile && (
+                        <span className="text-muted-foreground">By: {expense.submitted_by_profile.full_name}</span>
+                      )}
+                    </div>
+                    <div className="font-medium">
+                      {expense.currency === 'BDT' ? '৳' : ''}{expense.amount.toLocaleString()}
+                    </div>
+                  </div>
+                  {isAdmin && expense.status === 'SUBMITTED' && (
+                    <div className="flex gap-2 mt-2">
+                      <Button size="sm" variant="outline" onClick={() => handleExpenseAction(expense.id, 'approve')}>
+                        Approve
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => handleExpenseAction(expense.id, 'void')}>
+                        Void
+                      </Button>
                     </div>
                   )}
                 </div>
