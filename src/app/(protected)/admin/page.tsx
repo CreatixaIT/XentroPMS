@@ -60,7 +60,6 @@ export default function AdminPage() {
           <Link
             key={module.href}
             href={module.href}
-            className={module.disabled ? 'pointer-events-none opacity-50' : ''}
           >
             <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
               <CardHeader>
@@ -71,9 +70,6 @@ export default function AdminPage() {
               </CardHeader>
               <CardContent>
                 <p className="text-slate-500 dark:text-slate-400">{module.description}</p>
-                {module.disabled && (
-                  <p className="text-xs text-slate-400 mt-2">Coming in future phase</p>
-                )}
               </CardContent>
             </Card>
           </Link>
