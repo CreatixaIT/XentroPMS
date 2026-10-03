@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Eye, EyeOff } from 'lucide-react'
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -16,6 +17,8 @@ export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [passwordStrength, setPasswordStrength] = useState(0)
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
   const checkPasswordStrength = (password: string) => {
     let strength = 0
@@ -25,6 +28,14 @@ export default function RegisterPage() {
     if (/[0-9]/.test(password)) strength++
     if (/[^A-Za-z0-9]/.test(password)) strength++
     return strength
+  }
+
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      router.back()
+    } else {
+      router.push('/login')
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -42,9 +53,11 @@ export default function RegisterPage() {
       setError(result.error)
     } else if (result.success) {
       setSuccess(result.message)
-      setTimeout(() => {
-        router.push('/login')
-      }, 3000)
+      if (result.redirect) {
+        setTimeout(() => {
+          router.push(result.redirect as string)
+        }, 1500)
+      }
     }
   }
 
@@ -57,9 +70,22 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 p-4">
-      <Card className="w-full max-w-2xl">
+    <div className="min-h-screen flex items-center justify-center bg-cover bg-center bg-no-repeat relative p-4" style={{ backgroundImage: 'url(/assets/dashboard_bg.png)' }}>
+      <div className="absolute inset-0 bg-gradient-to-br from-slate-50/95 to-slate-100/95 dark:from-slate-950/95 dark:to-slate-900/95" />
+      <div className="relative z-10 w-full max-w-2xl">
+      <Card className="w-full">
         <CardHeader className="space-y-1">
+          <div className="flex items-center gap-2 mb-4">
+            <button
+              onClick={handleBack}
+              className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+              aria-label="Go back"
+            >
+              <svg className="h-5 w-5 text-slate-600 dark:text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+          </div>
           <div className="flex items-center justify-center gap-3 mb-4">
             <div className="h-12 w-12 rounded-lg bg-blue-600 flex items-center justify-center">
               <span className="text-white font-bold text-xl">X</span>
@@ -162,17 +188,28 @@ export default function RegisterPage() {
 
             <div className="space-y-2">
               <Label htmlFor="password">Password *</Label>
-              <Input
-                id="password"
-                name="password"
-                type="password"
-                placeholder="••••••••"
-                required
-                disabled={loading}
-                onChange={(e) => {
-                  setPasswordStrength(checkPasswordStrength(e.target.value))
-                }}
-              />
+              <div className="relative">
+                <Input
+                  id="password"
+                  name="password"
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="••••••••"
+                  required
+                  disabled={loading}
+                  onChange={(e) => {
+                    setPasswordStrength(checkPasswordStrength(e.target.value))
+                  }}
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700"
+                  disabled={loading}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
               <div className="flex gap-1 mt-1">
                 {[1, 2, 3, 4, 5].map((i) => (
                   <div
@@ -190,14 +227,25 @@ export default function RegisterPage() {
 
             <div className="space-y-2">
               <Label htmlFor="confirm_password">Confirm Password *</Label>
-              <Input
-                id="confirm_password"
-                name="confirm_password"
-                type="password"
-                placeholder="••••••••"
-                required
-                disabled={loading}
-              />
+              <div className="relative">
+                <Input
+                  id="confirm_password"
+                  name="confirm_password"
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  placeholder="••••••••"
+                  required
+                  disabled={loading}
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700"
+                  disabled={loading}
+                >
+                  {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </div>
 
             <Button type="submit" className="w-full" disabled={loading}>
@@ -214,6 +262,7 @@ export default function RegisterPage() {
           </div>
         </CardFooter>
       </Card>
+      </div>
     </div>
   )
 }

@@ -2,7 +2,9 @@ import Link from 'next/link'
 
 export default function Home() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 font-sans">
+    <div className="flex flex-col flex-1 items-center justify-center font-sans min-h-screen bg-cover bg-center bg-no-repeat relative" style={{ backgroundImage: 'url(/assets/dashboard_bg.png)' }}>
+      <div className="absolute inset-0 bg-gradient-to-br from-slate-50/95 to-slate-100/95 dark:from-slate-950/95 dark:to-slate-900/95" />
+      <div className="relative z-10 flex flex-col flex-1 w-full">
       {/* Header */}
       <header className="w-full px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -11,7 +13,7 @@ export default function Home() {
           </div>
           <span className="font-bold text-slate-900 dark:text-slate-50">Xentro PMS</span>
         </div>
-        <Link 
+        <Link
           href="/login"
           className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
         >
@@ -38,14 +40,7 @@ export default function Home() {
             Internal company management application for employees, team leaders, and administrators.
             Built for efficiency, collaboration, and success.
           </p>
-          
-          <div className="flex flex-col sm:flex-row gap-4 mt-4">
-            <div className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700">
-              <div className="h-2 w-2 rounded-full bg-green-500"></div>
-              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Coming Soon</span>
-            </div>
-          </div>
-          
+
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mt-8 w-full max-w-3xl">
             <div className="flex flex-col items-center gap-2 p-6 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
               <div className="h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
@@ -76,10 +71,11 @@ export default function Home() {
           </div>
         </div>
       </main>
-      
+
       <footer className="w-full py-6 text-center text-sm text-slate-500 dark:text-slate-400 border-t border-slate-200 dark:border-slate-800">
         <p>&copy; {new Date().getFullYear()} Xentro PMS. All rights reserved.</p>
       </footer>
+      </div>
     </div>
   );
 }

@@ -45,8 +45,8 @@ export async function register(formData: FormData) {
       }
     }
     
-    // Create user with Supabase Auth
-    const { error: authError } = await supabase.auth.signUp({
+    // Create user with Supabase Auth with auto-confirm
+    const { data: authData, error: authError } = await supabase.auth.signUp({
       email: data.email,
       password: data.password,
       options: {
@@ -67,13 +67,41 @@ export async function register(formData: FormData) {
         error: authError.message || 'Failed to create account',
       }
     }
-    
+
     // Profile is created automatically by the trigger
-    // Email verification will be sent by Supabase
+    // Update profile status to ACTIVE for immediate access
+    if (authData.user) {
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ status: 'ACTIVE' })
+        .eq('id', authData.user.id)
+      
+      if (updateError) {
+        console.error('Profile update error:', updateError)
+        // Continue anyway - profile exists but might need manual activation
+      }
+    }
     
+    // Sign in the user immediately after registration
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: data.email,
+      password: data.password,
+    })
+    
+    if (signInError) {
+      console.error('Auto sign-in error:', signInError)
+      return {
+        success: true,
+        message: 'Registration completed successfully. Please sign in to continue.',
+        redirect: '/login',
+      }
+    }
+    
+    revalidatePath('/', 'layout')
     return {
       success: true,
-      message: 'Registration successful. Please check your email to verify your account.',
+      message: 'Registration completed successfully.',
+      redirect: '/dashboard',
     }
   } catch (error) {
     console.error('Registration error:', error)
@@ -118,19 +146,19 @@ export async function login(formData: FormData) {
       if (profile.status === 'PENDING_VERIFICATION') {
         await supabase.auth.signOut()
         return {
-          error: 'Please verify your email before logging in',
+          error: 'Please verify your email before signing in',
           redirect: '/verify-email',
         }
       } else if (profile.status === 'DISABLED') {
         await supabase.auth.signOut()
         return {
-          error: 'Your account has been disabled. Please contact administrator.',
+          error: 'Your account is currently inactive. Please contact an administrator.',
           redirect: '/account-disabled',
         }
       } else if (profile.status === 'BLOCKED') {
         await supabase.auth.signOut()
         return {
-          error: 'Your account has been blocked. Please contact administrator.',
+          error: 'Your account has been blocked. Please contact an administrator.',
           redirect: '/account-blocked',
         }
       }
