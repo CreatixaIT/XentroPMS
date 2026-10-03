@@ -88,11 +88,7 @@ export default function AttendancePage() {
       }
 
       // Also load attendance record for display (optional, not used in current UI)
-      const response = await fetch('/api/attendance/today')
-      if (response.ok) {
-        const data = await response.json()
-        // Attendance record loaded but not displayed in current session-based UI
-      }
+      await fetch('/api/attendance/today')
     } catch (error) {
       console.error('Error loading attendance:', error)
     } finally {

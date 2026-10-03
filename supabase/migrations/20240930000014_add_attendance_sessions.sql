@@ -66,30 +66,15 @@ CREATE POLICY "Users can read own attendance sessions"
 -- SUPER_ADMIN can read all attendance sessions
 CREATE POLICY "SUPER_ADMIN can read all attendance sessions"
   ON attendance_sessions FOR SELECT
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.profiles 
-      WHERE id = auth.uid() AND role = 'SUPER_ADMIN'
-    )
-  );
+  USING (public.is_super_admin_active());
 
 -- No INSERT/UPDATE/DELETE policies for regular users - sessions managed through functions
 
 -- SUPER_ADMIN can manage attendance sessions
 CREATE POLICY "SUPER_ADMIN can manage attendance sessions"
   ON attendance_sessions FOR ALL
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.profiles 
-      WHERE id = auth.uid() AND role = 'SUPER_ADMIN'
-    )
-  )
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM public.profiles 
-      WHERE id = auth.uid() AND role = 'SUPER_ADMIN'
-    )
-  );
+  USING (public.is_super_admin_active())
+  WITH CHECK (public.is_super_admin_active());
 
 -- ============================================
 -- STEP 4: Update create_attendance_time_in function for sessions
@@ -287,9 +272,7 @@ SECURITY DEFINER
 AS $$
 BEGIN
   -- Authorization: p_user_id must match authenticated user or SUPER_ADMIN
-  IF p_user_id != auth.uid() AND NOT EXISTS (
-    SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'SUPER_ADMIN'
-  ) THEN
+  IF p_user_id != auth.uid() AND NOT public.is_super_admin_active() THEN
     RAISE EXCEPTION 'Unauthorized: Cannot access another user''s attendance';
   END IF;
   
@@ -326,9 +309,7 @@ DECLARE
   v_business_date DATE;
 BEGIN
   -- Authorization: p_user_id must match authenticated user or SUPER_ADMIN
-  IF p_user_id != auth.uid() AND NOT EXISTS (
-    SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'SUPER_ADMIN'
-  ) THEN
+  IF p_user_id != auth.uid() AND NOT public.is_super_admin_active() THEN
     RAISE EXCEPTION 'Unauthorized: Cannot access another user''s attendance';
   END IF;
   
@@ -379,9 +360,7 @@ SECURITY DEFINER
 AS $$
 BEGIN
   -- Authorization: p_user_id must match authenticated user or SUPER_ADMIN
-  IF p_user_id != auth.uid() AND NOT EXISTS (
-    SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'SUPER_ADMIN'
-  ) THEN
+  IF p_user_id != auth.uid() AND NOT public.is_super_admin_active() THEN
     RAISE EXCEPTION 'Unauthorized: Cannot access another user''s attendance';
   END IF;
   
@@ -422,9 +401,7 @@ SECURITY DEFINER
 AS $$
 BEGIN
   -- Authorization: p_user_id must match authenticated user or SUPER_ADMIN
-  IF p_user_id != auth.uid() AND NOT EXISTS (
-    SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'SUPER_ADMIN'
-  ) THEN
+  IF p_user_id != auth.uid() AND NOT public.is_super_admin_active() THEN
     RAISE EXCEPTION 'Unauthorized: Cannot access another user''s attendance';
   END IF;
   
