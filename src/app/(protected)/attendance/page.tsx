@@ -358,6 +358,17 @@ export default function AttendancePage() {
     return formatDuration(totalSeconds)
   }
 
+  const formatSessionDuration = (session: { time_out: string | null; time_in: string }) => {
+    if (!session.time_out) return null // Don't show duration for open sessions
+    
+    const timeIn = new Date(session.time_in)
+    const timeOut = new Date(session.time_out)
+    const diffMs = timeOut.getTime() - timeIn.getTime()
+    const diffSeconds = Math.floor(diffMs / 1000)
+    
+    return formatDuration(diffSeconds)
+  }
+
   const getTodayInfo = () => {
     const now = new Date()
     const dateOptions: Intl.DateTimeFormatOptions = {
@@ -548,9 +559,9 @@ export default function AttendancePage() {
                     {formatTime(session.time_in)}
                     {session.time_out ? ` — ${formatTime(session.time_out)}` : ' — Currently Working'}
                   </span>
-                  {session.duration && (
+                  {formatSessionDuration(session) && (
                     <span className="text-slate-500">
-                      {formatDuration(session.duration)}
+                      {formatSessionDuration(session)}
                     </span>
                   )}
                 </div>
