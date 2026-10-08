@@ -22,7 +22,8 @@
       "Exec(cp)",
       "Exec(git log)",
       "Exec(kill)",
-      "Exec(sed)"
+      "Exec(sed)",
+      "Exec(source)"
     ]
   }
 }
