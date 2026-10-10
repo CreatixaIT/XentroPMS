@@ -390,15 +390,15 @@ export async function updateProfile(formData: FormData) {
 
 export async function resendVerificationEmail(formData: FormData) {
   const supabase = await createClient()
-  
+
   const email = formData.get('email') as string
-  
+
   if (!email) {
     return {
       error: 'Email is required',
     }
   }
-  
+
   try {
     const { error } = await supabase.auth.resend({
       type: 'signup',
@@ -407,19 +407,69 @@ export async function resendVerificationEmail(formData: FormData) {
         emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/verify-email`,
       },
     })
-    
+
     if (error) {
       return {
         error: error.message || 'Failed to resend verification email',
       }
     }
-    
+
     return {
       success: true,
-      message: 'Verification email sent. Please check your inbox.',
+      message: 'Verification code sent. Please check your inbox.',
     }
   } catch (error) {
     console.error('Resend verification error:', error)
+    return {
+      error: 'An unexpected error occurred',
+    }
+  }
+}
+
+export async function verifyOtp(formData: FormData) {
+  const supabase = await createClient()
+
+  const email = formData.get('email') as string
+  const code = formData.get('code') as string
+
+  if (!email) {
+    return {
+      error: 'Email is required',
+    }
+  }
+
+  if (!code) {
+    return {
+      error: 'Verification code is required',
+    }
+  }
+
+  // Validate code format (6 digits)
+  if (!/^\d{6}$/.test(code)) {
+    return {
+      error: 'Invalid code format. Please enter the 6-digit code.',
+    }
+  }
+
+  try {
+    const { error } = await supabase.auth.verifyOtp({
+      email,
+      token: code,
+      type: 'signup',
+    })
+
+    if (error) {
+      return {
+        error: error.message || 'Failed to verify code. Please check the code and try again.',
+      }
+    }
+
+    return {
+      success: true,
+      message: 'Email verified successfully. Redirecting to login...',
+    }
+  } catch (error) {
+    console.error('Verify OTP error:', error)
     return {
       error: 'An unexpected error occurred',
     }

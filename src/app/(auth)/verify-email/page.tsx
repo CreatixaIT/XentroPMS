@@ -1,8 +1,9 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { resendVerificationEmail } from '@/app/actions/auth'
+import { resendVerificationEmail, verifyOtp } from '@/app/actions/auth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -10,21 +11,46 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
 export default function VerifyEmailPage() {
+  const router = useRouter()
   const [loading, setLoading] = useState(false)
+  const [resendLoading, setResendLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [email, setEmail] = useState('')
+  const [code, setCode] = useState('')
 
-  const handleResend = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleVerify = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setLoading(true)
     setError(null)
     setSuccess(null)
 
     const formData = new FormData(e.currentTarget)
-    const result = await resendVerificationEmail(formData)
+    const result = await verifyOtp(formData)
 
     setLoading(false)
+
+    if (result.error) {
+      setError(result.error)
+    } else if (result.success) {
+      setSuccess(result.message)
+      // Redirect to login after successful verification
+      setTimeout(() => {
+        router.push('/login')
+      }, 2000)
+    }
+  }
+
+  const handleResend = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    setResendLoading(true)
+    setError(null)
+    setSuccess(null)
+
+    const formData = new FormData(e.currentTarget)
+    const result = await resendVerificationEmail(formData)
+
+    setResendLoading(false)
 
     if (result.error) {
       setError(result.error)
@@ -48,7 +74,7 @@ export default function VerifyEmailPage() {
         <CardContent className="space-y-4">
           <Alert className="bg-blue-50 border-blue-200 text-blue-800">
             <AlertDescription>
-              Please check your email for a verification link. Click the link to verify your account.
+              Please check your email for a verification code. Enter the code below to verify your account.
             </AlertDescription>
           </Alert>
 
@@ -64,7 +90,7 @@ export default function VerifyEmailPage() {
             </Alert>
           )}
 
-          <form onSubmit={handleResend} className="space-y-4">
+          <form onSubmit={handleVerify} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -79,8 +105,51 @@ export default function VerifyEmailPage() {
               />
             </div>
 
+            <div className="space-y-2">
+              <Label htmlFor="code">Verification Code</Label>
+              <Input
+                id="code"
+                name="code"
+                type="text"
+                placeholder="Enter 6-digit code"
+                value={code}
+                onChange={(e) => {
+                  // Only allow digits and limit to 6 characters
+                  const value = e.target.value.replace(/\D/g, '').slice(0, 6)
+                  setCode(value)
+                }}
+                required
+                disabled={loading}
+                maxLength={6}
+                pattern="[0-9]{6}"
+                inputMode="numeric"
+              />
+            </div>
+
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Sending...' : 'Resend Verification Email'}
+              {loading ? 'Verifying...' : 'Verify Email'}
+            </Button>
+          </form>
+
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-white dark:bg-slate-950 px-2 text-slate-500">
+                Or
+              </span>
+            </div>
+          </div>
+
+          <form onSubmit={handleResend} className="space-y-4">
+            <Button
+              type="submit"
+              variant="outline"
+              className="w-full"
+              disabled={resendLoading}
+            >
+              {resendLoading ? 'Sending...' : 'Resend Code'}
             </Button>
           </form>
         </CardContent>
