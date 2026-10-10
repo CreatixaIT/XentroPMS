@@ -44,26 +44,71 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    
+
     // Validate input
     const validatedData = createItemSchema.parse(body)
-    
+
     const item = await createInventoryItem(validatedData)
-    
-    return NextResponse.json({ 
+
+    return NextResponse.json({
       success: true,
-      item 
+      item
     })
   } catch (error: unknown) {
     console.error('Create inventory item error:', error)
-    
+
     if (error instanceof Error && error.name === 'ZodError') {
       return NextResponse.json(
-        { error: 'Invalid input data' },
+        { error: 'Invalid input data. Please check all required fields.' },
         { status: 400 }
       )
     }
-    
+
+    if (error instanceof Error) {
+      const errorMessage = error.message.toLowerCase()
+
+      if (errorMessage.includes('sku') && errorMessage.includes('already exists')) {
+        return NextResponse.json(
+          { error: 'An item with this SKU already exists. Please use a unique SKU.' },
+          { status: 409 }
+        )
+      }
+
+      if (errorMessage.includes('unauthorized')) {
+        return NextResponse.json(
+          { error: 'You do not have permission to create inventory items.' },
+          { status: 403 }
+        )
+      }
+
+      if (errorMessage.includes('category') || errorMessage.includes('foreign key')) {
+        return NextResponse.json(
+          { error: 'Invalid category. Please select a valid category.' },
+          { status: 400 }
+        )
+      }
+
+      if (errorMessage.includes('negative')) {
+        return NextResponse.json(
+          { error: 'Quantity, cost, and price values cannot be negative.' },
+          { status: 400 }
+        )
+      }
+
+      if (errorMessage.includes('required')) {
+        return NextResponse.json(
+          { error: error.message },
+          { status: 400 }
+        )
+      }
+
+      // Return the actual error message for other cases
+      return NextResponse.json(
+        { error: error.message || 'Failed to create inventory item' },
+        { status: 500 }
+      )
+    }
+
     return NextResponse.json(
       { error: 'Failed to create inventory item' },
       { status: 500 }

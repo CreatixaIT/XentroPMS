@@ -6,6 +6,8 @@ import { ArrowLeft, Calendar, Clock, CheckCircle, AlertCircle, Package } from 'l
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
@@ -31,6 +33,29 @@ interface AttendanceRecord {
   time_in_location_verified: boolean
   time_out_location_verified: boolean
   status: string
+  attendance_sessions?: Array<{
+    id: string
+    time_in: string
+    time_out: string | null
+    duration_seconds: number | null
+  }>
+  total_working_hours?: string
+  total_working_seconds?: number
+  has_incomplete_session?: boolean
+}
+
+interface AttendanceReportData {
+  success: boolean
+  report_type: string
+  start_date: string | null
+  end_date: string | null
+  data: AttendanceRecord[]
+  summary: {
+    total_records: number
+    total_working_hours: string
+    total_working_seconds: number
+    records_with_incomplete_sessions: number
+  }
 }
 
 interface Project {
@@ -59,8 +84,15 @@ export default function EmployeeAttendancePage() {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
   const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([])
+  const [reportData, setReportData] = useState<AttendanceReportData | null>(null)
   const [projects, setProjects] = useState<Project[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
+  
+  // Reporting filters
+  const [reportType, setReportType] = useState<'history' | 'daily' | 'weekly' | 'monthly' | 'yearly'>('history')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     async function loadUsers() {
@@ -82,15 +114,28 @@ export default function EmployeeAttendancePage() {
     if (!selectedUserId) return
 
     async function loadEmployeeData() {
+      setLoading(true)
       try {
         const user = users.find(u => u.id === selectedUserId)
         setSelectedUser(user || null)
 
-        // Load attendance
-        const attendanceResponse = await fetch(`/api/attendance/user/${selectedUserId}?limit=30`)
+        // Load attendance with reporting
+        const params = new URLSearchParams()
+        params.append('report_type', reportType)
+        if (startDate) params.append('start_date', startDate)
+        if (endDate) params.append('end_date', endDate)
+        
+        const attendanceResponse = await fetch(`/api/attendance/user/${selectedUserId}?${params}`)
         if (attendanceResponse.ok) {
           const attendanceData = await attendanceResponse.json()
-          setAttendance(attendanceData.history || [])
+          
+          if (attendanceData.report_type === 'history') {
+            setAttendance(attendanceData.history || [])
+            setReportData(null)
+          } else {
+            setAttendance(attendanceData.data || [])
+            setReportData(attendanceData)
+          }
         }
 
         // Load projects
@@ -108,11 +153,13 @@ export default function EmployeeAttendancePage() {
         }
       } catch (error) {
         console.error('Error loading employee data:', error)
+      } finally {
+        setLoading(false)
       }
     }
     
     loadEmployeeData()
-  }, [selectedUserId, users])
+  }, [selectedUserId, users, reportType, startDate, endDate])
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
@@ -250,6 +297,75 @@ export default function EmployeeAttendancePage() {
             </CardContent>
           </Card>
 
+          {/* Attendance Reporting Controls */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="h-5 w-5" />
+                Attendance Reporting
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-3">
+                <div>
+                  <Label htmlFor="reportType">Report Type</Label>
+                  <Select value={reportType} onValueChange={(value: any) => setReportType(value)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="history">History (Last 30 days)</SelectItem>
+                      <SelectItem value="daily">Daily</SelectItem>
+                      <SelectItem value="weekly">Weekly</SelectItem>
+                      <SelectItem value="monthly">Monthly</SelectItem>
+                      <SelectItem value="yearly">Yearly</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="startDate">Start Date</Label>
+                  <Input
+                    id="startDate"
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    disabled={reportType === 'history'}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="endDate">End Date</Label>
+                  <Input
+                    id="endDate"
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    disabled={reportType === 'history'}
+                  />
+                </div>
+              </div>
+              {reportData && (
+                <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-lg">
+                  <div className="grid gap-2 md:grid-cols-3">
+                    <div>
+                      <div className="text-sm text-muted-foreground">Period Total</div>
+                      <div className="text-xl font-bold">{reportData.summary.total_working_hours}</div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-muted-foreground">Records</div>
+                      <div className="text-xl font-bold">{reportData.summary.total_records}</div>
+                    </div>
+                    <div>
+                      <div className="text-sm text-muted-foreground">Incomplete Sessions</div>
+                      <div className="text-xl font-bold text-orange-600">
+                        {reportData.summary.records_with_incomplete_sessions}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Attendance History */}
           <Card>
             <CardHeader>
@@ -259,29 +375,55 @@ export default function EmployeeAttendancePage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {attendance.length === 0 ? (
+              {loading ? (
+                <div className="text-center py-8 text-muted-foreground">Loading...</div>
+              ) : attendance.length === 0 ? (
                 <div className="text-center text-muted-foreground py-8">
                   No attendance records found
                 </div>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-4">
                   {attendance.map(record => (
-                    <div key={record.id} className="flex items-center justify-between border-b pb-2">
-                      <div>
-                        <div className="font-medium">{formatDate(record.attendance_date)}</div>
-                        <div className="text-sm text-muted-foreground">
-                          {record.time_in && `In: ${formatTime(record.time_in)}`}
-                          {record.time_out && ` • Out: ${formatTime(record.time_out)}`}
+                    <div key={record.id} className="border rounded-lg p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="font-medium">{formatDate(record.attendance_date)}</div>
+                          <div className="text-sm text-muted-foreground">
+                            Total: {record.total_working_hours || '0h 0m'}
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {record.time_in_location_verified && record.time_out_location_verified ? (
-                          <CheckCircle className="h-4 w-4 text-green-600" />
-                        ) : (
-                          <AlertCircle className="h-4 w-4 text-yellow-600" />
+                        {record.has_incomplete_session && (
+                          <Badge variant="destructive">Incomplete</Badge>
                         )}
-                        <Badge variant="outline">{record.status}</Badge>
                       </div>
+                      
+                      {/* Sessions */}
+                      {record.attendance_sessions && record.attendance_sessions.length > 0 && (
+                        <div className="space-y-2 ml-4">
+                          {record.attendance_sessions.map((session: any) => (
+                            <div key={session.id} className="flex items-center justify-between text-sm p-2 bg-slate-50 dark:bg-slate-900 rounded">
+                              <div>
+                                <span>{formatTime(session.time_in)}</span>
+                                {session.time_out ? (
+                                  <span> — {formatTime(session.time_out)}</span>
+                                ) : (
+                                  <span className="text-blue-600"> — Currently Working</span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {session.duration_seconds && (
+                                  <span className="text-slate-500">
+                                    {Math.floor(session.duration_seconds / 3600)}h {Math.floor((session.duration_seconds % 3600) / 60)}m
+                                  </span>
+                                )}
+                                {!session.time_out && (
+                                  <Badge variant="outline" className="text-xs">Open</Badge>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

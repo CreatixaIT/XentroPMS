@@ -112,6 +112,7 @@ CREATE OR REPLACE FUNCTION create_purchase_with_stock_update(
   p_invoice_reference TEXT DEFAULT NULL,
   p_notes TEXT DEFAULT NULL
 ) RETURNS UUID
+SET search_path = ''
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
@@ -180,6 +181,7 @@ CREATE OR REPLACE FUNCTION adjust_stock(
   p_reason TEXT,
   p_user_id UUID
 ) RETURNS VOID
+SET search_path = ''
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
@@ -253,12 +255,18 @@ CREATE OR REPLACE FUNCTION create_item_with_initial_stock(
   p_unit_cost NUMERIC DEFAULT 0,
   p_selling_price NUMERIC DEFAULT NULL
 ) RETURNS UUID
+SET search_path = ''
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 DECLARE
   v_item_id UUID;
 BEGIN
+  -- Authorization check
+  IF p_user_id != auth.uid() AND NOT public.is_super_admin_active() THEN
+    RAISE EXCEPTION 'Unauthorized: Only SUPER_ADMIN can create inventory items';
+  END IF;
+
   -- Validate inputs
   IF p_name IS NULL OR p_name = '' THEN
     RAISE EXCEPTION 'Item name is required';
@@ -286,6 +294,11 @@ BEGIN
 
   IF p_selling_price IS NOT NULL AND p_selling_price < 0 THEN
     RAISE EXCEPTION 'Selling price cannot be negative';
+  END IF;
+
+  -- Check for duplicate SKU
+  IF EXISTS (SELECT 1 FROM public.inventory_items WHERE sku = p_sku AND is_active = true) THEN
+    RAISE EXCEPTION 'An item with this SKU already exists';
   END IF;
 
   -- Create the item
@@ -485,3 +498,8 @@ CREATE POLICY "Users can read transactions"
 GRANT EXECUTE ON FUNCTION create_purchase_with_stock_update TO authenticated;
 GRANT EXECUTE ON FUNCTION adjust_stock TO authenticated;
 GRANT EXECUTE ON FUNCTION create_item_with_initial_stock TO authenticated;
+
+-- Revoke execute from PUBLIC for security
+REVOKE EXECUTE ON FUNCTION create_purchase_with_stock_update FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION adjust_stock FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION create_item_with_initial_stock FROM PUBLIC;

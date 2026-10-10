@@ -1,3 +1,6 @@
+'use client'
+
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { 
@@ -15,8 +18,33 @@ interface DashboardCardsProps {
 }
 
 export function DashboardCards({ summary }: DashboardCardsProps) {
+  const [todayHours, setTodayHours] = useState<{
+    business_date: string
+    total_completed_hours: string
+    current_session_hours: string | null
+    has_open_session: boolean
+  } | null>(null)
+
+  useEffect(() => {
+    async function fetchTodayHours() {
+      try {
+        const response = await fetch('/api/attendance/today-hours')
+        if (response.ok) {
+          const data = await response.json()
+          setTodayHours(data)
+        }
+      } catch (error) {
+        console.error('Error fetching today hours:', error)
+      }
+    }
+    fetchTodayHours()
+  }, [])
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {/* Today's Working Hours Card */}
+      <TodayWorkingHoursCard todayHours={todayHours} />
+      
       {/* Attendance Card */}
       <AttendanceCard summary={summary.attendance} />
       
@@ -41,6 +69,51 @@ export function DashboardCards({ summary }: DashboardCardsProps) {
       {/* Notifications Card */}
       <NotificationCard summary={summary.notifications} />
     </div>
+  )
+}
+
+function TodayWorkingHoursCard({ todayHours }: { todayHours: {
+    business_date: string
+    total_completed_hours: string
+    current_session_hours: string | null
+    has_open_session: boolean
+  } | null }) {
+  return (
+    <Link href="/attendance">
+      <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Today&apos;s Working Hours</CardTitle>
+          <Clock className="h-4 w-4 text-slate-500" />
+        </CardHeader>
+        <CardContent>
+          {todayHours ? (
+            <>
+              <div className="text-xs text-slate-500 mb-1">
+                {todayHours.business_date}
+              </div>
+              <div className="text-2xl font-bold mb-2">
+                {todayHours.total_completed_hours}
+              </div>
+              {todayHours.current_session_hours && (
+                <p className="text-xs text-blue-600">
+                  Current session: {todayHours.current_session_hours} (live)
+                </p>
+              )}
+              {!todayHours.current_session_hours && todayHours.total_completed_hours === '0h 0m' && (
+                <p className="text-xs text-slate-500">
+                  No working time recorded yet
+                </p>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="text-2xl font-bold mb-2">Loading...</div>
+              <p className="text-xs text-slate-500">Fetching working hours</p>
+            </>
+          )}
+        </CardContent>
+      </Card>
+    </Link>
   )
 }
 

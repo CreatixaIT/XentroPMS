@@ -170,11 +170,23 @@ export async function recordTimeIn(latitude: number, longitude: number, accuracy
     throw error
   }
 
-  // Fetch the created record
+  // The function returns the session_id, we need to get the attendance_record_id
+  // Fetch the session to get the attendance_record_id
+  const { data: session, error: sessionError } = await supabase
+    .from('attendance_sessions')
+    .select('attendance_record_id')
+    .eq('id', data)
+    .single()
+
+  if (sessionError) {
+    throw sessionError
+  }
+
+  // Fetch the attendance record
   const { data: record, error: fetchError } = await supabase
     .from('attendance_records')
     .select('*')
-    .eq('id', data)
+    .eq('id', session.attendance_record_id)
     .single()
 
   if (fetchError) {
@@ -217,11 +229,23 @@ export async function recordTimeOut(latitude: number, longitude: number, accurac
     throw error
   }
 
-  // Fetch the updated record
+  // The function returns the session_id, we need to get the attendance_record_id
+  // Fetch the session to get the attendance_record_id
+  const { data: session, error: sessionError } = await supabase
+    .from('attendance_sessions')
+    .select('attendance_record_id')
+    .eq('id', data)
+    .single()
+
+  if (sessionError) {
+    throw sessionError
+  }
+
+  // Fetch the attendance record
   const { data: record, error: fetchError } = await supabase
     .from('attendance_records')
     .select('*')
-    .eq('id', data)
+    .eq('id', session.attendance_record_id)
     .single()
 
   if (fetchError) {
