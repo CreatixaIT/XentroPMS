@@ -3,11 +3,11 @@
 -- 
 -- This migration updates inventory functions to:
 -- 1. Use SET search_path = '' to prevent SQL injection
--- 2. Add authorization checks to create_item_with_initial_stock
--- 3. Add duplicate SKU validation
--- 4. Revoke execute permissions from PUBLIC
+-- 2. Schema-qualify all table references (required with empty search_path)
+-- 3. Revoke execute permissions from PUBLIC
+-- Note: Authorization is handled by RLS policies (migration 00009), not function checks
 
--- Update create_purchase_with_stock_update with search_path fix
+-- Update create_purchase_with_stock_update with search_path fix and schema qualification
 CREATE OR REPLACE FUNCTION create_purchase_with_stock_update(
   p_item_id UUID,
   p_quantity NUMERIC,
@@ -29,7 +29,7 @@ DECLARE
 BEGIN
   -- Lock the item row to prevent concurrent modifications
   SELECT current_quantity INTO v_current_stock
-  FROM inventory_items
+  FROM public.inventory_items
   WHERE id = p_item_id
   FOR UPDATE;
 
@@ -50,13 +50,13 @@ BEGIN
   v_new_stock := v_current_stock + p_quantity;
 
   -- Update item stock
-  UPDATE inventory_items
+  UPDATE public.inventory_items
   SET current_quantity = v_new_stock,
       updated_at = NOW()
   WHERE id = p_item_id;
 
   -- Create purchase record
-  INSERT INTO inventory_purchases (
+  INSERT INTO public.inventory_purchases (
     item_id, quantity, unit_cost, purchase_date,
     supplier_name, invoice_reference, notes, created_by
   ) VALUES (
@@ -65,7 +65,7 @@ BEGIN
   ) RETURNING id INTO v_purchase_id;
 
   -- Create transaction record
-  INSERT INTO inventory_transactions (
+  INSERT INTO public.inventory_transactions (
     item_id, transaction_type, quantity,
     quantity_before, quantity_after,
     reference_type, reference_id, reason, created_by
@@ -79,7 +79,7 @@ BEGIN
 END;
 $$;
 
--- Update adjust_stock with search_path fix
+-- Update adjust_stock with search_path fix and schema qualification
 CREATE OR REPLACE FUNCTION adjust_stock(
   p_item_id UUID,
   p_adjustment_type TEXT,
@@ -103,7 +103,7 @@ BEGIN
 
   -- Lock the item row
   SELECT current_quantity INTO v_current_stock
-  FROM inventory_items
+  FROM public.inventory_items
   WHERE id = p_item_id
   FOR UPDATE;
 
@@ -129,13 +129,13 @@ BEGIN
   END IF;
 
   -- Update item stock
-  UPDATE inventory_items
+  UPDATE public.inventory_items
   SET current_quantity = v_new_stock,
       updated_at = NOW()
   WHERE id = p_item_id;
 
   -- Create transaction record
-  INSERT INTO inventory_transactions (
+  INSERT INTO public.inventory_transactions (
     item_id, transaction_type, quantity,
     quantity_before, quantity_after,
     reason, created_by
@@ -147,7 +147,9 @@ BEGIN
 END;
 $$;
 
--- Update create_item_with_initial_stock with security fixes
+-- Update create_item_with_initial_stock with search_path fix and schema qualification
+-- Note: Authorization is handled by RLS policies (migration 00009), not function checks
+-- Note: SKU uniqueness is enforced by database constraint (sku TEXT NOT NULL UNIQUE in schema)
 CREATE OR REPLACE FUNCTION create_item_with_initial_stock(
   p_category_id UUID,
   p_name TEXT,
@@ -168,11 +170,6 @@ AS $$
 DECLARE
   v_item_id UUID;
 BEGIN
-  -- Authorization check
-  IF p_user_id != auth.uid() AND NOT public.is_super_admin_active() THEN
-    RAISE EXCEPTION 'Unauthorized: Only SUPER_ADMIN can create inventory items';
-  END IF;
-
   -- Validate inputs
   IF p_name IS NULL OR p_name = '' THEN
     RAISE EXCEPTION 'Item name is required';
@@ -202,13 +199,8 @@ BEGIN
     RAISE EXCEPTION 'Selling price cannot be negative';
   END IF;
 
-  -- Check for duplicate SKU
-  IF EXISTS (SELECT 1 FROM public.inventory_items WHERE sku = p_sku AND is_active = true) THEN
-    RAISE EXCEPTION 'An item with this SKU already exists';
-  END IF;
-
-  -- Create the item
-  INSERT INTO inventory_items (
+  -- Create the item (SKU uniqueness enforced by database constraint)
+  INSERT INTO public.inventory_items (
     category_id, name, sku, description, unit,
     size_specification, current_quantity, reorder_level,
     unit_cost, selling_price, created_by
@@ -220,7 +212,7 @@ BEGIN
 
   -- If initial quantity > 0, create a transaction record
   IF p_initial_quantity > 0 THEN
-    INSERT INTO inventory_transactions (
+    INSERT INTO public.inventory_transactions (
       item_id, transaction_type, quantity,
       quantity_before, quantity_after,
       reason, created_by
@@ -236,11 +228,11 @@ END;
 $$;
 
 -- Revoke execute permissions from PUBLIC for security
-REVOKE EXECUTE ON FUNCTION create_purchase_with_stock_update FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION adjust_stock FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION create_item_with_initial_stock FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.create_purchase_with_stock_update(UUID, NUMERIC, NUMERIC, UUID, DATE, TEXT, TEXT, TEXT) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.adjust_stock(UUID, TEXT, NUMERIC, TEXT, UUID) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.create_item_with_initial_stock(UUID, TEXT, TEXT, TEXT, TEXT, TEXT, UUID, NUMERIC, NUMERIC, NUMERIC, NUMERIC) FROM PUBLIC;
 
 -- Ensure execute permissions are granted to authenticated
-GRANT EXECUTE ON FUNCTION create_purchase_with_stock_update TO authenticated;
-GRANT EXECUTE ON FUNCTION adjust_stock TO authenticated;
-GRANT EXECUTE ON FUNCTION create_item_with_initial_stock TO authenticated;
+GRANT EXECUTE ON FUNCTION public.create_purchase_with_stock_update(UUID, NUMERIC, NUMERIC, UUID, DATE, TEXT, TEXT, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.adjust_stock(UUID, TEXT, NUMERIC, TEXT, UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.create_item_with_initial_stock(UUID, TEXT, TEXT, TEXT, TEXT, TEXT, UUID, NUMERIC, NUMERIC, NUMERIC, NUMERIC) TO authenticated;

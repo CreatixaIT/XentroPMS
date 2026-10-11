@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Calendar, Clock, CheckCircle, AlertCircle, Package } from 'lucide-react'
+import { ArrowLeft, Calendar, Clock, Package } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -42,6 +42,13 @@ interface AttendanceRecord {
   total_working_hours?: string
   total_working_seconds?: number
   has_incomplete_session?: boolean
+}
+
+interface AttendanceSession {
+  id: string
+  time_in: string
+  time_out: string | null
+  duration_seconds: number | null
 }
 
 interface AttendanceReportData {
@@ -309,7 +316,7 @@ export default function EmployeeAttendancePage() {
               <div className="grid gap-4 md:grid-cols-3">
                 <div>
                   <Label htmlFor="reportType">Report Type</Label>
-                  <Select value={reportType} onValueChange={(value: any) => setReportType(value)}>
+                  <Select value={reportType} onValueChange={(value: 'history' | 'daily' | 'weekly' | 'monthly' | 'yearly' | null) => setReportType(value || 'history')}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -400,7 +407,7 @@ export default function EmployeeAttendancePage() {
                       {/* Sessions */}
                       {record.attendance_sessions && record.attendance_sessions.length > 0 && (
                         <div className="space-y-2 ml-4">
-                          {record.attendance_sessions.map((session: any) => (
+                          {record.attendance_sessions.map((session: AttendanceSession) => (
                             <div key={session.id} className="flex items-center justify-between text-sm p-2 bg-slate-50 dark:bg-slate-900 rounded">
                               <div>
                                 <span>{formatTime(session.time_in)}</span>

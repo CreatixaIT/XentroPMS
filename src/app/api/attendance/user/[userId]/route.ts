@@ -62,12 +62,20 @@ export async function GET(
     }
     
     // Calculate totals and process sessions
-    const processedAttendance = (attendance || []).map((record: any) => {
+    const processedAttendance = (attendance || []).map((record: {
+      id: string
+      attendance_date: string
+      attendance_sessions?: Array<{
+        id: string
+        time_in: string
+        time_out: string | null
+      }>
+    }) => {
       const sessions = record.attendance_sessions || []
       
       // Calculate total working time from completed sessions only
       let totalSeconds = 0
-      const processedSessions = sessions.map((session: any) => {
+      const processedSessions = sessions.map((session) => {
         if (session.time_out) {
           const timeIn = new Date(session.time_in)
           const timeOut = new Date(session.time_out)
@@ -95,12 +103,14 @@ export async function GET(
         attendance_sessions: processedSessions,
         total_working_hours: `${hours}h ${minutes}m`,
         total_working_seconds: totalSeconds,
-        has_incomplete_session: sessions.some((s: any) => !s.time_out)
+        has_incomplete_session: sessions.some((s) => !s.time_out)
       }
     })
     
     // Calculate period totals
-    const totalPeriodSeconds = processedAttendance.reduce((sum: number, record: any) => 
+    const totalPeriodSeconds = processedAttendance.reduce((sum: number, record: {
+      total_working_seconds?: number
+    }) => 
       sum + (record.total_working_seconds || 0), 0
     )
     const totalPeriodHours = Math.floor(totalPeriodSeconds / 3600)
@@ -116,7 +126,9 @@ export async function GET(
         total_records: processedAttendance.length,
         total_working_hours: `${totalPeriodHours}h ${totalPeriodMinutes}m`,
         total_working_seconds: totalPeriodSeconds,
-        records_with_incomplete_sessions: processedAttendance.filter((r: any) => r.has_incomplete_session).length
+        records_with_incomplete_sessions: processedAttendance.filter((r: {
+          has_incomplete_session?: boolean
+        }) => r.has_incomplete_session).length
       }
     })
   } catch (error: unknown) {
