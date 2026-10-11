@@ -94,12 +94,33 @@ export default function EmployeeAttendancePage() {
   const [reportData, setReportData] = useState<AttendanceReportData | null>(null)
   const [projects, setProjects] = useState<Project[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   
   // Reporting filters
   const [reportType, setReportType] = useState<'history' | 'daily' | 'weekly' | 'monthly' | 'yearly'>('history')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
-  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    async function checkAdmin() {
+      try {
+        const response = await fetch('/api/auth/check-admin')
+        const data = await response.json()
+        setIsAdmin(data.is_admin)
+        if (!data.is_admin) {
+          setError('Access denied: SUPER_ADMIN access required')
+        }
+      } catch (error) {
+        console.error('Error checking admin status:', error)
+        setError('Failed to verify access permissions')
+      } finally {
+        setLoading(false)
+      }
+    }
+    checkAdmin()
+  }, [])
 
   useEffect(() => {
     async function loadUsers() {
@@ -108,6 +129,9 @@ export default function EmployeeAttendancePage() {
         if (response.ok) {
           const data = await response.json()
           setUsers(data.users.filter((u: User) => u.status === 'ACTIVE'))
+        } else if (response.status === 403) {
+          // User is not SUPER_ADMIN
+          console.error('Unauthorized: SUPER_ADMIN access required')
         }
       } catch (error) {
         console.error('Error loading users:', error)
@@ -231,6 +255,32 @@ export default function EmployeeAttendancePage() {
   const pendingTasks = tasks.filter(t => t.status !== 'COMPLETED')
   const overdueTasks = tasks.filter(t => isTaskOverdue(t))
   const completedLateTasks = tasks.filter(t => isTaskCompletedLate(t))
+
+  if (loading) {
+    return (
+      <div className="p-6">
+        <div className="text-center py-12 text-slate-500">Loading...</div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <div className="text-center py-12">
+          <div className="text-red-600 font-medium mb-2">Access Denied</div>
+          <div className="text-slate-500">{error}</div>
+          <Button
+            variant="outline"
+            className="mt-4"
+            onClick={() => router.back()}
+          >
+            Go Back
+          </Button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="p-6 space-y-6">

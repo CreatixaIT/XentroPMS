@@ -1,10 +1,26 @@
 import { NextResponse } from 'next/server'
 import { getCurrentAttendanceStatus, getTodaySessions } from '@/lib/attendance/service'
+import { createClient } from '@/lib/supabase/server'
 
 export async function GET() {
   try {
     const status = await getCurrentAttendanceStatus()
     const sessions = await getTodaySessions()
+
+    // Get Bangladesh business date from server
+    const supabase = await createClient()
+    const { data: dateResult } = await supabase.rpc('get_business_date')
+    
+    if (!dateResult) {
+      throw new Error('Failed to get business date')
+    }
+
+    const businessDate = dateResult
+    const businessDateDisplay = new Date(businessDate).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    })
 
     // Calculate total completed working time (sum of completed sessions only)
     let totalCompletedSeconds = 0
@@ -34,23 +50,17 @@ export async function GET() {
       return `${hours}h ${minutes}m`
     }
 
-    // Get Bangladesh business date
-    const now = new Date()
-    const businessDate = now.toLocaleDateString('en-US', {
-      timeZone: 'Asia/Dhaka',
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    })
+    // Total includes completed + current open session
+    const totalWithCurrent = totalCompletedSeconds + currentSessionElapsedSeconds
 
     return NextResponse.json({
       success: true,
-      business_date: businessDate,
+      business_date: businessDateDisplay,
       total_completed_hours: formatDuration(totalCompletedSeconds),
       total_completed_seconds: totalCompletedSeconds,
       current_session_hours: currentSessionElapsedSeconds > 0 ? formatDuration(currentSessionElapsedSeconds) : null,
       current_session_seconds: currentSessionElapsedSeconds,
+      total_with_current_hours: formatDuration(totalWithCurrent),
       has_open_session: status.has_open_session,
       latest_time_in: status.latest_time_in
     })

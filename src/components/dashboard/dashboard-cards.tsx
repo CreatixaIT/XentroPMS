@@ -38,6 +38,10 @@ export function DashboardCards({ summary }: DashboardCardsProps) {
       }
     }
     fetchTodayHours()
+    
+    // Refresh every 30 seconds to update live session duration
+    const interval = setInterval(fetchTodayHours, 30000)
+    return () => clearInterval(interval)
   }, [])
 
   return (
@@ -76,6 +80,7 @@ function TodayWorkingHoursCard({ todayHours }: { todayHours: {
     business_date: string
     total_completed_hours: string
     current_session_hours: string | null
+    total_with_current_hours?: string
     has_open_session: boolean
   } | null }) {
   return (
@@ -92,7 +97,7 @@ function TodayWorkingHoursCard({ todayHours }: { todayHours: {
                 {todayHours.business_date}
               </div>
               <div className="text-2xl font-bold mb-2">
-                {todayHours.total_completed_hours}
+                {todayHours.total_with_current_hours || todayHours.total_completed_hours}
               </div>
               {todayHours.current_session_hours && (
                 <p className="text-xs text-blue-600">
