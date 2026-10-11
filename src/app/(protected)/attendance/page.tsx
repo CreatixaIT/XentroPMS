@@ -60,6 +60,8 @@ export default function AttendancePage() {
 
   const loadAttendance = useCallback(async () => {
     try {
+      setError(null)
+      
       // Fetch user data from API
       const userResponse = await fetch('/api/user')
       if (userResponse.ok) {
@@ -74,6 +76,7 @@ export default function AttendancePage() {
       const statusResponse = await fetch('/api/attendance/status')
       if (statusResponse.ok) {
         const statusData = await statusResponse.json()
+        console.log('Attendance status data:', statusData)
         setSessionStatus(statusData.status)
         setSessions(statusData.sessions || [])
         
@@ -85,12 +88,17 @@ export default function AttendancePage() {
         } else {
           setStatus('not_recorded')
         }
+      } else {
+        const errorData = await statusResponse.json()
+        console.error('Status API error:', errorData)
+        setError(`Failed to load attendance status: ${errorData.error || 'Unknown error'}`)
       }
 
       // Also load attendance record for display (optional, not used in current UI)
       await fetch('/api/attendance/today')
     } catch (error) {
       console.error('Error loading attendance:', error)
+      setError(error instanceof Error ? error.message : 'Failed to load attendance')
     } finally {
       setLoading(false)
     }

@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Calendar, Clock, Package } from 'lucide-react'
+import { ArrowLeft, Calendar, Clock, Package, AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -146,6 +147,7 @@ export default function EmployeeAttendancePage() {
 
     async function loadEmployeeData() {
       setLoading(true)
+      setError(null)
       try {
         const user = users.find(u => u.id === selectedUserId)
         setSelectedUser(user || null)
@@ -167,6 +169,9 @@ export default function EmployeeAttendancePage() {
             setAttendance(attendanceData.data || [])
             setReportData(attendanceData)
           }
+        } else {
+          const errorData = await attendanceResponse.json()
+          setError(`Failed to load attendance: ${errorData.error || 'Unknown error'}`)
         }
 
         // Load projects
@@ -174,6 +179,8 @@ export default function EmployeeAttendancePage() {
         if (projectsResponse.ok) {
           const projectsData = await projectsResponse.json()
           setProjects(projectsData.projects || [])
+        } else {
+          console.error('Failed to load projects')
         }
 
         // Load tasks
@@ -181,9 +188,12 @@ export default function EmployeeAttendancePage() {
         if (tasksResponse.ok) {
           const tasksData = await tasksResponse.json()
           setTasks(tasksData.tasks || [])
+        } else {
+          console.error('Failed to load tasks')
         }
       } catch (error) {
         console.error('Error loading employee data:', error)
+        setError(error instanceof Error ? error.message : 'Failed to load employee data')
       } finally {
         setLoading(false)
       }
@@ -319,6 +329,13 @@ export default function EmployeeAttendancePage() {
 
       {selectedUser && (
         <>
+          {error && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
           {/* Employee Profile */}
           <Card>
             <CardHeader>

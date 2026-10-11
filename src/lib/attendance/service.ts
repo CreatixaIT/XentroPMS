@@ -51,6 +51,10 @@ export async function getCurrentAttendanceStatus() {
     })
 
   if (error) {
+    console.error('get_current_attendance_status RPC error:', error)
+    if (error.code === '42883') {
+      throw new Error('Attendance function not found. Please ensure migration 00014 is applied to the database.')
+    }
     throw error
   }
 
@@ -93,6 +97,10 @@ export async function getTodaySessions() {
     })
 
   if (error) {
+    console.error('get_attendance_sessions RPC error:', error)
+    if (error.code === '42883') {
+      throw new Error('Attendance sessions function not found. Please ensure migration 00014 is applied to the database.')
+    }
     throw error
   }
 
