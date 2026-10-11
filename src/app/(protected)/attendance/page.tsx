@@ -30,7 +30,7 @@ export default function AttendancePage() {
     has_open_session: boolean
     latest_time_in: string | null
     latest_session_id: string | null
-    total_working_time: string | null
+    total_working_time: number
   } | null>(null)
   const [sessions, setSessions] = useState<{
     id: string
@@ -83,7 +83,7 @@ export default function AttendancePage() {
         // Set attendance status based on session data
         if (statusData.status?.has_open_session) {
           setStatus('timed_in')
-        } else if (statusData.status?.total_working_time > 0) {
+        } else if (statusData.status?.total_working_time && statusData.status.total_working_time > 0) {
           setStatus('complete')
         } else {
           setStatus('not_recorded')

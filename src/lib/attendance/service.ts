@@ -52,10 +52,16 @@ export async function getCurrentAttendanceStatus() {
 
   if (error) {
     console.error('get_current_attendance_status RPC error:', error)
+    console.error('Error code:', error.code)
+    console.error('Error message:', error.message)
+    console.error('Error details:', error.details)
     if (error.code === '42883') {
-      throw new Error('Attendance function not found. Please ensure migration 00014 is applied to the database.')
+      throw new Error('Attendance sessions function not found in database. Please apply migration 20261012000002 to the database.')
     }
-    throw error
+    if (error.code === '42704') {
+      throw new Error('Database table or object not found. Please ensure attendance_sessions table exists.')
+    }
+    throw new Error(`Failed to get attendance status: ${error.message}`)
   }
 
   if (!data || data.length === 0) {
@@ -67,7 +73,28 @@ export async function getCurrentAttendanceStatus() {
     }
   }
 
-  return data[0]
+  const result = data[0]
+  
+  // Convert INTERVAL to seconds for client compatibility
+  let totalWorkingTime = 0
+  if (result.total_working_time) {
+    // PostgreSQL INTERVAL format: "HH:MM:SS"
+    const intervalStr = result.total_working_time.toString()
+    const parts = intervalStr.split(':')
+    if (parts.length >= 3) {
+      const hours = parseInt(parts[0], 10) || 0
+      const minutes = parseInt(parts[1], 10) || 0
+      const seconds = parseInt(parts[2], 10) || 0
+      totalWorkingTime = hours * 3600 + minutes * 60 + seconds
+    }
+  }
+
+  return {
+    has_open_session: result.has_open_session,
+    latest_time_in: result.latest_time_in,
+    latest_session_id: result.latest_session_id,
+    total_working_time: totalWorkingTime
+  }
 }
 
 /**
@@ -99,7 +126,10 @@ export async function getTodaySessions() {
   if (error) {
     console.error('get_attendance_sessions RPC error:', error)
     if (error.code === '42883') {
-      throw new Error('Attendance sessions function not found. Please ensure migration 00014 is applied to the database.')
+      throw new Error('Attendance sessions function not found. Please ensure migration 20261012000002 is applied to the database.')
+    }
+    if (error.code === '42704') {
+      throw new Error('Database table or object not found. Please ensure attendance_sessions table exists.')
     }
     throw error
   }

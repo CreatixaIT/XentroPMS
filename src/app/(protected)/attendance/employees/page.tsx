@@ -95,7 +95,6 @@ export default function EmployeeAttendancePage() {
   const [reportData, setReportData] = useState<AttendanceReportData | null>(null)
   const [projects, setProjects] = useState<Project[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
-  const [isAdmin, setIsAdmin] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   
@@ -109,7 +108,6 @@ export default function EmployeeAttendancePage() {
       try {
         const response = await fetch('/api/auth/check-admin')
         const data = await response.json()
-        setIsAdmin(data.is_admin)
         if (!data.is_admin) {
           setError('Access denied: SUPER_ADMIN access required')
         }
